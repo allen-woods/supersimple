@@ -1,6 +1,7 @@
 package supersimple
 
 import (
+	"errors"
 	"io"
 	"log"
 
@@ -30,15 +31,17 @@ func MarshalID(id primitive.ObjectID) graphql.Marshaler {
 }
 
 func UnmarshalID(v interface{}) (primitive.ObjectID, error) {
-	hex, ok := v.(string)
+	var id primitive.ObjectID
+	var err error
+	err = nil
+
+	json, ok := v.(string)
+
 	if !ok {
-		log.Fatal("ids must be strings")
+		err = errors.New("ids must be strings")
+	} else {
+		err = id.UnmarshalJSON([]byte(json))
 	}
 
-	objID, err := primitive.ObjectIDFromHex(hex)
-	if err != nil {
-		log.Fatal("Error:", err)
-	}
-
-	return objID, err
+	return id, err
 }

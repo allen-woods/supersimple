@@ -10,8 +10,10 @@ import (
 	"github.com/99designs/gqlgen/handler"
 	"github.com/allen-woods/supersimple"
 	"github.com/go-redis/redis"
+
+	//"github.com/gorilla/sessions"
 	"github.com/pkg/errors"
-	// 	"github.com/allen-woods/supersimple"
+	//"github.com/rbcervilla/redisstore"
 )
 
 type Cache struct {
