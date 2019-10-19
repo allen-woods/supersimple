@@ -1,19 +1,33 @@
-type User {
+# type User {
+#   id: ID!
+#   name: String!
+# }
+
+# type Query {
+#   oneUser(id: ID, name: String): User!
+#   users: [User!]!
+# }
+
+# input NewUser {
+#   name: String!
+# }
+
+# type Mutation {
+#   createUser(input: NewUser!): User
+#   updateUser(id: ID!, name: String!): User!
+#   deleteUser(id: ID!): User!
+# }
+
+type Author {
   id: ID!
-  name: String!
+  first: String!
+  last: String!
+  books: [Book!]!
 }
 
-type Query {
-  oneUser(id: ID, name: String): User!
-  users: [User!]!
-}
-
-input NewUser {
-  name: String!
-}
-
-type Mutation {
-  createUser(input: NewUser!): User
-  updateUser(id: ID!, name: String!): User!
-  deleteUser(id: ID!): User!
+type Book {
+  id: ID!
+  title: String!
+  description: String!
+  authors: [Author!]!
 }
