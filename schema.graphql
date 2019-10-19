@@ -1,33 +1,65 @@
-# type User {
-#   id: ID!
-#   name: String!
-# }
-
-# type Query {
-#   oneUser(id: ID, name: String): User!
-#   users: [User!]!
-# }
-
-# input NewUser {
-#   name: String!
-# }
-
-# type Mutation {
-#   createUser(input: NewUser!): User
-#   updateUser(id: ID!, name: String!): User!
-#   deleteUser(id: ID!): User!
-# }
+scalar Time
 
 type Author {
   id: ID!
   first: String!
   last: String!
+  dateOfBirth: Time!
+  dateOfDeath: Time
   books: [Book!]!
+}
+
+input NewAuthor {
+  first: String!
+  last: String!
+  dateOfBirth: Time!
+  dateOfDeath: Time
 }
 
 type Book {
   id: ID!
   title: String!
+  genre: String!
   description: String!
+  publisher: String!
   authors: [Author!]!
+  outOfPrint: Boolean!
+}
+
+input NewBook {
+  title: String!
+  genre: String!
+  description: String!
+  publisher: String!
+  outOfPrint: Boolean!
+}
+
+type Query {
+  oneAuthor(
+    id: ID
+    first: String
+    last: String
+    dateOfBirth: Time
+    alive: Boolean
+  ): Author!
+  oneBook(
+    id: ID
+    title: String
+    genre: String
+    description: String
+    publisher: String
+    outOfPrint: Boolean
+  ): Book!
+  authors: [Author!]!
+  books: [Book!]!
+}
+
+type Mutation {
+  createAuthor(input: NewAuthor!): Author!
+  updateAuthor(id: ID!, dateOfDeath: Time!): Author!
+  deleteAuthor(id: ID!): Author!
+
+  createBook(input: NewBook!): Book!
+  updateBook(id: ID!, outOfPrint: Boolean): Book!
+  deleteBook(id: ID!): Book!
 }
