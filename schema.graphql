@@ -1,3 +1,4 @@
+# Refactoring into Library example on "aggregation" branch
 type User {
   id: ID!
   name: String!
