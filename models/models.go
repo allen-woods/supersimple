@@ -4,18 +4,45 @@ import (
 	"errors"
 	"io"
 	"log"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql"
 	primitive "go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type NewUser struct {
-	Name string
+type NewAuthor struct {
+	First       string
+	Last        string
+	DateOfBirth time.Time
+	DateOfDeath time.Time
 }
 
-type User struct {
-	ID   primitive.ObjectID `bson:"_id,omitempty"`
-	Name string             `bson:"name"`
+type Author struct {
+	ID          primitive.ObjectID `bson:"_id,omitempty"`
+	First       string
+	Last        string
+	DateOfBirth time.Time
+	DateOfDeath time.Time
+	Books       []Book
+}
+
+type NewBook struct {
+	Authors     []primitive.ObjectID `bson:"_id,omitempty"`
+	Title       string
+	Genre       string
+	Description string
+	Publisher   string
+	OutOfPrint  bool
+}
+
+type Book struct {
+	ID          primitive.ObjectID `bson:"_id,omitempty"`
+	Authors     []Author
+	Title       string
+	Genre       string
+	Description string
+	Publisher   string
+	OutOfPrint  bool
 }
 
 func MarshalID(id primitive.ObjectID) graphql.Marshaler {

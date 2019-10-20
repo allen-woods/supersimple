@@ -65,8 +65,8 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		CreateAuthor func(childComplexity int, input NewAuthor) int
-		CreateBook   func(childComplexity int, input NewBook) int
+		CreateAuthor func(childComplexity int, input supersimple.NewAuthor) int
+		CreateBook   func(childComplexity int, input supersimple.NewBook) int
 		DeleteAuthor func(childComplexity int, id primitive.ObjectID) int
 		DeleteBook   func(childComplexity int, id primitive.ObjectID) int
 		UpdateAuthor func(childComplexity int, id primitive.ObjectID, dateOfDeath time.Time) int
@@ -82,18 +82,18 @@ type ComplexityRoot struct {
 }
 
 type MutationResolver interface {
-	CreateAuthor(ctx context.Context, input NewAuthor) (*Author, error)
-	UpdateAuthor(ctx context.Context, id primitive.ObjectID, dateOfDeath time.Time) (*Author, error)
-	DeleteAuthor(ctx context.Context, id primitive.ObjectID) (*Author, error)
-	CreateBook(ctx context.Context, input NewBook) (*Book, error)
-	UpdateBook(ctx context.Context, id primitive.ObjectID, outOfPrint *bool) (*Book, error)
-	DeleteBook(ctx context.Context, id primitive.ObjectID) (*Book, error)
+	CreateAuthor(ctx context.Context, input supersimple.NewAuthor) (*supersimple.Author, error)
+	UpdateAuthor(ctx context.Context, id primitive.ObjectID, dateOfDeath time.Time) (*supersimple.Author, error)
+	DeleteAuthor(ctx context.Context, id primitive.ObjectID) (*supersimple.Author, error)
+	CreateBook(ctx context.Context, input supersimple.NewBook) (*supersimple.Book, error)
+	UpdateBook(ctx context.Context, id primitive.ObjectID, outOfPrint *bool) (*supersimple.Book, error)
+	DeleteBook(ctx context.Context, id primitive.ObjectID) (*supersimple.Book, error)
 }
 type QueryResolver interface {
-	OneAuthor(ctx context.Context, id *primitive.ObjectID, first *string, last *string, dateOfBirth *time.Time, alive *bool) (*Author, error)
-	OneBook(ctx context.Context, id *primitive.ObjectID, title *string, genre *string, description *string, publisher *string, outOfPrint *bool) (*Book, error)
-	Authors(ctx context.Context) ([]*Author, error)
-	Books(ctx context.Context) ([]*Book, error)
+	OneAuthor(ctx context.Context, id *primitive.ObjectID, first *string, last *string, dateOfBirth *time.Time, alive *bool) (*supersimple.Author, error)
+	OneBook(ctx context.Context, id *primitive.ObjectID, title *string, genre *string, description *string, publisher *string, outOfPrint *bool) (*supersimple.Book, error)
+	Authors(ctx context.Context) ([]*supersimple.Author, error)
+	Books(ctx context.Context) ([]*supersimple.Book, error)
 }
 
 type executableSchema struct {
@@ -212,7 +212,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateAuthor(childComplexity, args["input"].(NewAuthor)), true
+		return e.complexity.Mutation.CreateAuthor(childComplexity, args["input"].(supersimple.NewAuthor)), true
 
 	case "Mutation.createBook":
 		if e.complexity.Mutation.CreateBook == nil {
@@ -224,7 +224,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateBook(childComplexity, args["input"].(NewBook)), true
+		return e.complexity.Mutation.CreateBook(childComplexity, args["input"].(supersimple.NewBook)), true
 
 	case "Mutation.deleteAuthor":
 		if e.complexity.Mutation.DeleteAuthor == nil {
@@ -394,15 +394,16 @@ input NewAuthor {
 
 type Book {
   id: ID!
+  authors: [Author!]!
   title: String!
   genre: String!
   description: String!
   publisher: String!
-  authors: [Author!]!
   outOfPrint: Boolean!
 }
 
 input NewBook {
+  authors: [ID!]!
   title: String!
   genre: String!
   description: String!
@@ -449,9 +450,9 @@ type Mutation {
 func (ec *executionContext) field_Mutation_createAuthor_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 NewAuthor
+	var arg0 supersimple.NewAuthor
 	if tmp, ok := rawArgs["input"]; ok {
-		arg0, err = ec.unmarshalNNewAuthor2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐNewAuthor(ctx, tmp)
+		arg0, err = ec.unmarshalNNewAuthor2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐNewAuthor(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -463,9 +464,9 @@ func (ec *executionContext) field_Mutation_createAuthor_args(ctx context.Context
 func (ec *executionContext) field_Mutation_createBook_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 NewBook
+	var arg0 supersimple.NewBook
 	if tmp, ok := rawArgs["input"]; ok {
-		arg0, err = ec.unmarshalNNewBook2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐNewBook(ctx, tmp)
+		arg0, err = ec.unmarshalNNewBook2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐNewBook(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -696,7 +697,7 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
-func (ec *executionContext) _Author_id(ctx context.Context, field graphql.CollectedField, obj *Author) (ret graphql.Marshaler) {
+func (ec *executionContext) _Author_id(ctx context.Context, field graphql.CollectedField, obj *supersimple.Author) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -733,7 +734,7 @@ func (ec *executionContext) _Author_id(ctx context.Context, field graphql.Collec
 	return ec.marshalNID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Author_first(ctx context.Context, field graphql.CollectedField, obj *Author) (ret graphql.Marshaler) {
+func (ec *executionContext) _Author_first(ctx context.Context, field graphql.CollectedField, obj *supersimple.Author) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -770,7 +771,7 @@ func (ec *executionContext) _Author_first(ctx context.Context, field graphql.Col
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Author_last(ctx context.Context, field graphql.CollectedField, obj *Author) (ret graphql.Marshaler) {
+func (ec *executionContext) _Author_last(ctx context.Context, field graphql.CollectedField, obj *supersimple.Author) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -807,7 +808,7 @@ func (ec *executionContext) _Author_last(ctx context.Context, field graphql.Coll
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Author_dateOfBirth(ctx context.Context, field graphql.CollectedField, obj *Author) (ret graphql.Marshaler) {
+func (ec *executionContext) _Author_dateOfBirth(ctx context.Context, field graphql.CollectedField, obj *supersimple.Author) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -844,7 +845,7 @@ func (ec *executionContext) _Author_dateOfBirth(ctx context.Context, field graph
 	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Author_dateOfDeath(ctx context.Context, field graphql.CollectedField, obj *Author) (ret graphql.Marshaler) {
+func (ec *executionContext) _Author_dateOfDeath(ctx context.Context, field graphql.CollectedField, obj *supersimple.Author) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -872,13 +873,13 @@ func (ec *executionContext) _Author_dateOfDeath(ctx context.Context, field graph
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*time.Time)
+	res := resTmp.(time.Time)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalOTime2ᚖtimeᚐTime(ctx, field.Selections, res)
+	return ec.marshalOTime2timeᚐTime(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Author_books(ctx context.Context, field graphql.CollectedField, obj *Author) (ret graphql.Marshaler) {
+func (ec *executionContext) _Author_books(ctx context.Context, field graphql.CollectedField, obj *supersimple.Author) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -909,13 +910,13 @@ func (ec *executionContext) _Author_books(ctx context.Context, field graphql.Col
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*Book)
+	res := resTmp.([]supersimple.Book)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNBook2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐBook(ctx, field.Selections, res)
+	return ec.marshalNBook2ᚕgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐBook(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Book_id(ctx context.Context, field graphql.CollectedField, obj *Book) (ret graphql.Marshaler) {
+func (ec *executionContext) _Book_id(ctx context.Context, field graphql.CollectedField, obj *supersimple.Book) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -952,7 +953,44 @@ func (ec *executionContext) _Book_id(ctx context.Context, field graphql.Collecte
 	return ec.marshalNID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Book_title(ctx context.Context, field graphql.CollectedField, obj *Book) (ret graphql.Marshaler) {
+func (ec *executionContext) _Book_authors(ctx context.Context, field graphql.CollectedField, obj *supersimple.Book) (ret graphql.Marshaler) {
+	ctx = ec.Tracer.StartFieldExecution(ctx, field)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+		ec.Tracer.EndFieldExecution(ctx)
+	}()
+	rctx := &graphql.ResolverContext{
+		Object:   "Book",
+		Field:    field,
+		Args:     nil,
+		IsMethod: false,
+	}
+	ctx = graphql.WithResolverContext(ctx, rctx)
+	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Authors, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !ec.HasError(rctx) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]supersimple.Author)
+	rctx.Result = res
+	ctx = ec.Tracer.StartFieldChildExecution(ctx)
+	return ec.marshalNAuthor2ᚕgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Book_title(ctx context.Context, field graphql.CollectedField, obj *supersimple.Book) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -989,7 +1027,7 @@ func (ec *executionContext) _Book_title(ctx context.Context, field graphql.Colle
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Book_genre(ctx context.Context, field graphql.CollectedField, obj *Book) (ret graphql.Marshaler) {
+func (ec *executionContext) _Book_genre(ctx context.Context, field graphql.CollectedField, obj *supersimple.Book) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -1026,7 +1064,7 @@ func (ec *executionContext) _Book_genre(ctx context.Context, field graphql.Colle
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Book_description(ctx context.Context, field graphql.CollectedField, obj *Book) (ret graphql.Marshaler) {
+func (ec *executionContext) _Book_description(ctx context.Context, field graphql.CollectedField, obj *supersimple.Book) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -1063,7 +1101,7 @@ func (ec *executionContext) _Book_description(ctx context.Context, field graphql
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Book_publisher(ctx context.Context, field graphql.CollectedField, obj *Book) (ret graphql.Marshaler) {
+func (ec *executionContext) _Book_publisher(ctx context.Context, field graphql.CollectedField, obj *supersimple.Book) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -1100,44 +1138,7 @@ func (ec *executionContext) _Book_publisher(ctx context.Context, field graphql.C
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Book_authors(ctx context.Context, field graphql.CollectedField, obj *Book) (ret graphql.Marshaler) {
-	ctx = ec.Tracer.StartFieldExecution(ctx, field)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-		ec.Tracer.EndFieldExecution(ctx)
-	}()
-	rctx := &graphql.ResolverContext{
-		Object:   "Book",
-		Field:    field,
-		Args:     nil,
-		IsMethod: false,
-	}
-	ctx = graphql.WithResolverContext(ctx, rctx)
-	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.Authors, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !ec.HasError(rctx) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.([]*Author)
-	rctx.Result = res
-	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNAuthor2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐAuthor(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) _Book_outOfPrint(ctx context.Context, field graphql.CollectedField, obj *Book) (ret graphql.Marshaler) {
+func (ec *executionContext) _Book_outOfPrint(ctx context.Context, field graphql.CollectedField, obj *supersimple.Book) (ret graphql.Marshaler) {
 	ctx = ec.Tracer.StartFieldExecution(ctx, field)
 	defer func() {
 		if r := recover(); r != nil {
@@ -1200,7 +1201,7 @@ func (ec *executionContext) _Mutation_createAuthor(ctx context.Context, field gr
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateAuthor(rctx, args["input"].(NewAuthor))
+		return ec.resolvers.Mutation().CreateAuthor(rctx, args["input"].(supersimple.NewAuthor))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1212,10 +1213,10 @@ func (ec *executionContext) _Mutation_createAuthor(ctx context.Context, field gr
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*Author)
+	res := resTmp.(*supersimple.Author)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNAuthor2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐAuthor(ctx, field.Selections, res)
+	return ec.marshalNAuthor2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_updateAuthor(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1256,10 +1257,10 @@ func (ec *executionContext) _Mutation_updateAuthor(ctx context.Context, field gr
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*Author)
+	res := resTmp.(*supersimple.Author)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNAuthor2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐAuthor(ctx, field.Selections, res)
+	return ec.marshalNAuthor2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_deleteAuthor(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1300,10 +1301,10 @@ func (ec *executionContext) _Mutation_deleteAuthor(ctx context.Context, field gr
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*Author)
+	res := resTmp.(*supersimple.Author)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNAuthor2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐAuthor(ctx, field.Selections, res)
+	return ec.marshalNAuthor2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_createBook(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1332,7 +1333,7 @@ func (ec *executionContext) _Mutation_createBook(ctx context.Context, field grap
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateBook(rctx, args["input"].(NewBook))
+		return ec.resolvers.Mutation().CreateBook(rctx, args["input"].(supersimple.NewBook))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1344,10 +1345,10 @@ func (ec *executionContext) _Mutation_createBook(ctx context.Context, field grap
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*Book)
+	res := resTmp.(*supersimple.Book)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNBook2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐBook(ctx, field.Selections, res)
+	return ec.marshalNBook2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐBook(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_updateBook(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1388,10 +1389,10 @@ func (ec *executionContext) _Mutation_updateBook(ctx context.Context, field grap
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*Book)
+	res := resTmp.(*supersimple.Book)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNBook2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐBook(ctx, field.Selections, res)
+	return ec.marshalNBook2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐBook(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_deleteBook(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1432,10 +1433,10 @@ func (ec *executionContext) _Mutation_deleteBook(ctx context.Context, field grap
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*Book)
+	res := resTmp.(*supersimple.Book)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNBook2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐBook(ctx, field.Selections, res)
+	return ec.marshalNBook2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐBook(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_oneAuthor(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1476,10 +1477,10 @@ func (ec *executionContext) _Query_oneAuthor(ctx context.Context, field graphql.
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*Author)
+	res := resTmp.(*supersimple.Author)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNAuthor2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐAuthor(ctx, field.Selections, res)
+	return ec.marshalNAuthor2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_oneBook(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1520,10 +1521,10 @@ func (ec *executionContext) _Query_oneBook(ctx context.Context, field graphql.Co
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*Book)
+	res := resTmp.(*supersimple.Book)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNBook2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐBook(ctx, field.Selections, res)
+	return ec.marshalNBook2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐBook(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_authors(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1557,10 +1558,10 @@ func (ec *executionContext) _Query_authors(ctx context.Context, field graphql.Co
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*Author)
+	res := resTmp.([]*supersimple.Author)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNAuthor2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐAuthor(ctx, field.Selections, res)
+	return ec.marshalNAuthor2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_books(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1594,10 +1595,10 @@ func (ec *executionContext) _Query_books(ctx context.Context, field graphql.Coll
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*Book)
+	res := resTmp.([]*supersimple.Book)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNBook2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐBook(ctx, field.Selections, res)
+	return ec.marshalNBook2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐBook(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2826,8 +2827,8 @@ func (ec *executionContext) ___Type_ofType(ctx context.Context, field graphql.Co
 
 // region    **************************** input.gotpl *****************************
 
-func (ec *executionContext) unmarshalInputNewAuthor(ctx context.Context, obj interface{}) (NewAuthor, error) {
-	var it NewAuthor
+func (ec *executionContext) unmarshalInputNewAuthor(ctx context.Context, obj interface{}) (supersimple.NewAuthor, error) {
+	var it supersimple.NewAuthor
 	var asMap = obj.(map[string]interface{})
 
 	for k, v := range asMap {
@@ -2852,7 +2853,7 @@ func (ec *executionContext) unmarshalInputNewAuthor(ctx context.Context, obj int
 			}
 		case "dateOfDeath":
 			var err error
-			it.DateOfDeath, err = ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			it.DateOfDeath, err = ec.unmarshalOTime2timeᚐTime(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -2862,12 +2863,18 @@ func (ec *executionContext) unmarshalInputNewAuthor(ctx context.Context, obj int
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputNewBook(ctx context.Context, obj interface{}) (NewBook, error) {
-	var it NewBook
+func (ec *executionContext) unmarshalInputNewBook(ctx context.Context, obj interface{}) (supersimple.NewBook, error) {
+	var it supersimple.NewBook
 	var asMap = obj.(map[string]interface{})
 
 	for k, v := range asMap {
 		switch k {
+		case "authors":
+			var err error
+			it.Authors, err = ec.unmarshalNID2ᚕgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, v)
+			if err != nil {
+				return it, err
+			}
 		case "title":
 			var err error
 			it.Title, err = ec.unmarshalNString2string(ctx, v)
@@ -2914,7 +2921,7 @@ func (ec *executionContext) unmarshalInputNewBook(ctx context.Context, obj inter
 
 var authorImplementors = []string{"Author"}
 
-func (ec *executionContext) _Author(ctx context.Context, sel ast.SelectionSet, obj *Author) graphql.Marshaler {
+func (ec *executionContext) _Author(ctx context.Context, sel ast.SelectionSet, obj *supersimple.Author) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.RequestContext, sel, authorImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -2963,7 +2970,7 @@ func (ec *executionContext) _Author(ctx context.Context, sel ast.SelectionSet, o
 
 var bookImplementors = []string{"Book"}
 
-func (ec *executionContext) _Book(ctx context.Context, sel ast.SelectionSet, obj *Book) graphql.Marshaler {
+func (ec *executionContext) _Book(ctx context.Context, sel ast.SelectionSet, obj *supersimple.Book) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.RequestContext, sel, bookImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -2974,6 +2981,11 @@ func (ec *executionContext) _Book(ctx context.Context, sel ast.SelectionSet, obj
 			out.Values[i] = graphql.MarshalString("Book")
 		case "id":
 			out.Values[i] = ec._Book_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "authors":
+			out.Values[i] = ec._Book_authors(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
@@ -2994,11 +3006,6 @@ func (ec *executionContext) _Book(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "publisher":
 			out.Values[i] = ec._Book_publisher(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
-		case "authors":
-			out.Values[i] = ec._Book_authors(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
@@ -3405,11 +3412,11 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
-func (ec *executionContext) marshalNAuthor2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐAuthor(ctx context.Context, sel ast.SelectionSet, v Author) graphql.Marshaler {
+func (ec *executionContext) marshalNAuthor2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx context.Context, sel ast.SelectionSet, v supersimple.Author) graphql.Marshaler {
 	return ec._Author(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNAuthor2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐAuthor(ctx context.Context, sel ast.SelectionSet, v []*Author) graphql.Marshaler {
+func (ec *executionContext) marshalNAuthor2ᚕgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx context.Context, sel ast.SelectionSet, v []supersimple.Author) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -3433,7 +3440,7 @@ func (ec *executionContext) marshalNAuthor2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋ
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNAuthor2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐAuthor(ctx, sel, v[i])
+			ret[i] = ec.marshalNAuthor2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -3446,7 +3453,44 @@ func (ec *executionContext) marshalNAuthor2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNAuthor2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐAuthor(ctx context.Context, sel ast.SelectionSet, v *Author) graphql.Marshaler {
+func (ec *executionContext) marshalNAuthor2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx context.Context, sel ast.SelectionSet, v []*supersimple.Author) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		rctx := &graphql.ResolverContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithResolverContext(ctx, rctx)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNAuthor2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalNAuthor2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx context.Context, sel ast.SelectionSet, v *supersimple.Author) graphql.Marshaler {
 	if v == nil {
 		if !ec.HasError(graphql.GetResolverContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -3456,11 +3500,11 @@ func (ec *executionContext) marshalNAuthor2ᚖgithubᚗcomᚋallenᚑwoodsᚋsup
 	return ec._Author(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNBook2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐBook(ctx context.Context, sel ast.SelectionSet, v Book) graphql.Marshaler {
+func (ec *executionContext) marshalNBook2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐBook(ctx context.Context, sel ast.SelectionSet, v supersimple.Book) graphql.Marshaler {
 	return ec._Book(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNBook2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐBook(ctx context.Context, sel ast.SelectionSet, v []*Book) graphql.Marshaler {
+func (ec *executionContext) marshalNBook2ᚕgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐBook(ctx context.Context, sel ast.SelectionSet, v []supersimple.Book) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -3484,7 +3528,7 @@ func (ec *executionContext) marshalNBook2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋsu
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNBook2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐBook(ctx, sel, v[i])
+			ret[i] = ec.marshalNBook2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐBook(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -3497,7 +3541,44 @@ func (ec *executionContext) marshalNBook2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋsu
 	return ret
 }
 
-func (ec *executionContext) marshalNBook2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐBook(ctx context.Context, sel ast.SelectionSet, v *Book) graphql.Marshaler {
+func (ec *executionContext) marshalNBook2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐBook(ctx context.Context, sel ast.SelectionSet, v []*supersimple.Book) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		rctx := &graphql.ResolverContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithResolverContext(ctx, rctx)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNBook2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐBook(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+	return ret
+}
+
+func (ec *executionContext) marshalNBook2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐBook(ctx context.Context, sel ast.SelectionSet, v *supersimple.Book) graphql.Marshaler {
 	if v == nil {
 		if !ec.HasError(graphql.GetResolverContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -3535,11 +3616,40 @@ func (ec *executionContext) marshalNID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbso
 	return res
 }
 
-func (ec *executionContext) unmarshalNNewAuthor2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐNewAuthor(ctx context.Context, v interface{}) (NewAuthor, error) {
+func (ec *executionContext) unmarshalNID2ᚕgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx context.Context, v interface{}) ([]primitive.ObjectID, error) {
+	var vSlice []interface{}
+	if v != nil {
+		if tmp1, ok := v.([]interface{}); ok {
+			vSlice = tmp1
+		} else {
+			vSlice = []interface{}{v}
+		}
+	}
+	var err error
+	res := make([]primitive.ObjectID, len(vSlice))
+	for i := range vSlice {
+		res[i], err = ec.unmarshalNID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNID2ᚕgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx context.Context, sel ast.SelectionSet, v []primitive.ObjectID) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, sel, v[i])
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNNewAuthor2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐNewAuthor(ctx context.Context, v interface{}) (supersimple.NewAuthor, error) {
 	return ec.unmarshalInputNewAuthor(ctx, v)
 }
 
-func (ec *executionContext) unmarshalNNewBook2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚐNewBook(ctx context.Context, v interface{}) (NewBook, error) {
+func (ec *executionContext) unmarshalNNewBook2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐNewBook(ctx context.Context, v interface{}) (supersimple.NewBook, error) {
 	return ec.unmarshalInputNewBook(ctx, v)
 }
 

@@ -10,10 +10,14 @@ exec:
 model:
   filename: models_gen.go
 models:
-  NewUser:
-    model: github.com/allen-woods/supersimple/models.NewUser
-  User:
-    model: github.com/allen-woods/supersimple/models.User
+  NewAuthor:
+    model: github.com/allen-woods/supersimple/models.NewAuthor
+  Author:
+    model: github.com/allen-woods/supersimple/models.Author
+  NewBook:
+    model: github.com/allen-woods/supersimple/models.NewBook
+  Book:
+    model: github.com/allen-woods/supersimple/models.Book
   ID:
     model: github.com/allen-woods/supersimple/models.ID
 resolver:

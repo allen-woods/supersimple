@@ -18,15 +18,16 @@ input NewAuthor {
 
 type Book {
   id: ID!
+  authors: [Author!]!
   title: String!
   genre: String!
   description: String!
   publisher: String!
-  authors: [Author!]!
   outOfPrint: Boolean!
 }
 
 input NewBook {
+  authors: [ID!]!
   title: String!
   genre: String!
   description: String!
