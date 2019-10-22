@@ -10,3 +10,10 @@ This is a non-project research repo for cementing fundamentals of Gqlgen, as wel
 - Use aggregation to join Authors and Books:
   - Books contain an array of Author IDs.
   - Authors can match their ID with Books.
+
+# Joins:
+
+- Authors
+  - .books returns an array of Books
+- Books
+  - .authors returns an array of Authors
