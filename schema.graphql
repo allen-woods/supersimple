@@ -41,7 +41,7 @@ type Query {
     first: String
     last: String
     dateOfBirth: Time
-    alive: Boolean
+    dateOfDeath: Time
   ): Author!
   oneBook(
     id: ID

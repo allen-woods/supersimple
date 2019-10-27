@@ -36,8 +36,8 @@ type NewBook struct {
 }
 
 type Book struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty"`
-	Authors     []Author
+	ID          primitive.ObjectID   `bson:"_id,omitempty"`
+	Authors     []primitive.ObjectID `bson:"_id,omitempty"`
 	Title       string
 	Genre       string
 	Description string
