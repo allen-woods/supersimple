@@ -169,18 +169,21 @@ func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, f
 
 	var filter bson.D
 
-	args := make(map[string]string)
-
-	args["id"] = id.Hex()
-	args["first"] = *first
-	args["last"] = *last
-	args["dateOfBirth"] = dateOfBirth.String()
-	args["dateOfDeath"] = dateOfDeath.String()
-
-	for key, val := range args {
-		if val != "" {
-			filter = append(filter, bson.E{key, val})
-		}
+	// Prevent the filter from failing if any parameter is omitted
+	if id != nil {
+		filter = append(filter, bson.E{"_id", id})
+	}
+	if first != nil {
+		filter = append(filter, bson.E{"first", first})
+	}
+	if last != nil {
+		filter = append(filter, bson.E{"last", last})
+	}
+	if dateOfBirth != nil {
+		filter = append(filter, bson.E{"dateOfBirth", dateOfBirth})
+	}
+	if dateOfDeath != nil {
+		filter = append(filter, bson.E{"dateOfDeath", dateOfDeath})
 	}
 
 	var a supersimple.Author
