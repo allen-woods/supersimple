@@ -3,7 +3,6 @@ package supersimple
 import (
 	"context"
 	"log"
-	"strconv"
 	"time"
 
 	supersimple "github.com/allen-woods/supersimple/models"
@@ -120,7 +119,7 @@ func (r *mutationResolver) CreateBook(ctx context.Context, input supersimple.New
 	b.ID = id.(primitive.ObjectID)
 	return b, nil
 }
-func (r *mutationResolver) UpdateBook(ctx context.Context, id primitive.ObjectID, outOfPrint *bool) (*supersimple.Book, error) {
+func (r *mutationResolver) UpdateBook(ctx context.Context, id primitive.ObjectID, outOfPrint bool) (*supersimple.Book, error) {
 	ctx, collection := GoMongo("simple", "books")
 
 	filter := bson.D{
@@ -169,7 +168,6 @@ func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, f
 
 	var filter bson.D
 
-	// Prevent the filter from failing if any parameter is omitted
 	if id != nil {
 		filter = append(filter, bson.E{"_id", id})
 	}
@@ -191,49 +189,102 @@ func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, f
 	pipeline := []bson.D{
 		bson.D{
 			{
+				"$match", filter,
+			},
+		},
+		bson.D{
+			{
 				"$lookup", bson.D{
 					{"from", "books"},
 					{"localField", "_id"},
-					{"foreignField", "authors"},
+					{"foreignField", "authors.author_id"},
 					{"as", "books"},
 				},
 			},
 		},
 	}
 
-	cur, err := collection.Aggregate(ctx, pipeline)
-	err = collection.FindOne(ctx, filter).Decode(&a)
+	opts := options.Aggregate()
+	opts.SetMaxAwaitTime(time.Second * 3)
+	opts.SetMaxTime(time.Second * 3)
+
+	cur, err := collection.Aggregate(ctx, pipeline, opts)
 	if err != nil {
 		log.Println("Error:", err)
 	}
+
+	defer cur.Close(ctx)
+
+	for cur.Next(ctx) {
+		if err := cur.Decode(&a); err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	return &a, nil
 }
+
 func (r *queryResolver) OneBook(ctx context.Context, id *primitive.ObjectID, title *string, genre *string, description *string, publisher *string, outOfPrint *bool) (*supersimple.Book, error) {
 	ctx, collection := GoMongo("simple", "books")
 
 	var filter bson.D
 
-	args := make(map[string]string)
-
-	args["id"] = id.Hex()
-	args["title"] = *title
-	args["genre"] = *genre
-	args["description"] = *description
-	args["publisher"] = *publisher
-	args["outOfPrint"] = strconv.FormatBool(*outOfPrint)
-
-	for key, val := range args {
-		if val != "" {
-			filter = append(filter, bson.E{key, val})
-		}
+	if id != nil {
+		filter = append(filter, bson.E{"_id", id})
+	}
+	if title != nil {
+		filter = append(filter, bson.E{"title", title})
+	}
+	if genre != nil {
+		filter = append(filter, bson.E{"genre", genre})
+	}
+	if description != nil {
+		filter = append(filter, bson.E{"description", description})
+	}
+	if publisher != nil {
+		filter = append(filter, bson.E{"publisher", publisher})
+	}
+	if outOfPrint != nil {
+		filter = append(filter, bson.E{"outOfPrint", outOfPrint})
 	}
 
 	var b supersimple.Book
 
-	err := collection.FindOne(ctx, filter).Decode(&b)
+	pipeline := []bson.D{
+		bson.D{
+			{
+				"$match", filter,
+			},
+		},
+		bson.D{
+			{
+				"$lookup", bson.D{
+					{"from", "authors"},
+					{"localField", "authors.author_id"},
+					{"foreignField", "_id"},
+					{"as", "authors"},
+				},
+			},
+		},
+	}
+
+	opts := options.Aggregate()
+	opts.SetMaxAwaitTime(time.Second * 3)
+	opts.SetMaxTime(time.Second * 3)
+
+	cur, err := collection.Aggregate(ctx, pipeline, opts)
 	if err != nil {
 		log.Println("Error:", err)
 	}
+
+	defer cur.Close(ctx)
+
+	for cur.Next(ctx) {
+		if err := cur.Decode(&b); err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	return &b, nil
 }
 func (r *queryResolver) Authors(ctx context.Context) ([]*supersimple.Author, error) {

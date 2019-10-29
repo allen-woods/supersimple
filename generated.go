@@ -70,13 +70,13 @@ type ComplexityRoot struct {
 		DeleteAuthor func(childComplexity int, id primitive.ObjectID) int
 		DeleteBook   func(childComplexity int, id primitive.ObjectID) int
 		UpdateAuthor func(childComplexity int, id primitive.ObjectID, dateOfDeath time.Time) int
-		UpdateBook   func(childComplexity int, id primitive.ObjectID, outOfPrint *bool) int
+		UpdateBook   func(childComplexity int, id primitive.ObjectID, outOfPrint bool) int
 	}
 
 	Query struct {
 		Authors   func(childComplexity int) int
 		Books     func(childComplexity int) int
-		OneAuthor func(childComplexity int, id *primitive.ObjectID, first *string, last *string, dateOfBirth *time.Time, alive *bool) int
+		OneAuthor func(childComplexity int, id *primitive.ObjectID, first *string, last *string, dateOfBirth *time.Time, dateOfDeath *time.Time) int
 		OneBook   func(childComplexity int, id *primitive.ObjectID, title *string, genre *string, description *string, publisher *string, outOfPrint *bool) int
 	}
 }
@@ -86,11 +86,11 @@ type MutationResolver interface {
 	UpdateAuthor(ctx context.Context, id primitive.ObjectID, dateOfDeath time.Time) (*supersimple.Author, error)
 	DeleteAuthor(ctx context.Context, id primitive.ObjectID) (*supersimple.Author, error)
 	CreateBook(ctx context.Context, input supersimple.NewBook) (*supersimple.Book, error)
-	UpdateBook(ctx context.Context, id primitive.ObjectID, outOfPrint *bool) (*supersimple.Book, error)
+	UpdateBook(ctx context.Context, id primitive.ObjectID, outOfPrint bool) (*supersimple.Book, error)
 	DeleteBook(ctx context.Context, id primitive.ObjectID) (*supersimple.Book, error)
 }
 type QueryResolver interface {
-	OneAuthor(ctx context.Context, id *primitive.ObjectID, first *string, last *string, dateOfBirth *time.Time, alive *bool) (*supersimple.Author, error)
+	OneAuthor(ctx context.Context, id *primitive.ObjectID, first *string, last *string, dateOfBirth *time.Time, dateOfDeath *time.Time) (*supersimple.Author, error)
 	OneBook(ctx context.Context, id *primitive.ObjectID, title *string, genre *string, description *string, publisher *string, outOfPrint *bool) (*supersimple.Book, error)
 	Authors(ctx context.Context) ([]*supersimple.Author, error)
 	Books(ctx context.Context) ([]*supersimple.Book, error)
@@ -272,7 +272,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.UpdateBook(childComplexity, args["id"].(primitive.ObjectID), args["outOfPrint"].(*bool)), true
+		return e.complexity.Mutation.UpdateBook(childComplexity, args["id"].(primitive.ObjectID), args["outOfPrint"].(bool)), true
 
 	case "Query.authors":
 		if e.complexity.Query.Authors == nil {
@@ -298,7 +298,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.OneAuthor(childComplexity, args["id"].(*primitive.ObjectID), args["first"].(*string), args["last"].(*string), args["dateOfBirth"].(*time.Time), args["alive"].(*bool)), true
+		return e.complexity.Query.OneAuthor(childComplexity, args["id"].(*primitive.ObjectID), args["first"].(*string), args["last"].(*string), args["dateOfBirth"].(*time.Time), args["dateOfDeath"].(*time.Time)), true
 
 	case "Query.oneBook":
 		if e.complexity.Query.OneBook == nil {
@@ -394,7 +394,7 @@ input NewAuthor {
 
 type Book {
   id: ID!
-  authors: [Author!]!
+  authors: [ID!]!
   title: String!
   genre: String!
   description: String!
@@ -417,7 +417,7 @@ type Query {
     first: String
     last: String
     dateOfBirth: Time
-    alive: Boolean
+    dateOfDeath: Time
   ): Author!
   oneBook(
     id: ID
@@ -437,7 +437,7 @@ type Mutation {
   deleteAuthor(id: ID!): Author!
 
   createBook(input: NewBook!): Book!
-  updateBook(id: ID!, outOfPrint: Boolean): Book!
+  updateBook(id: ID!, outOfPrint: Boolean!): Book!
   deleteBook(id: ID!): Book!
 }
 `},
@@ -536,9 +536,9 @@ func (ec *executionContext) field_Mutation_updateBook_args(ctx context.Context, 
 		}
 	}
 	args["id"] = arg0
-	var arg1 *bool
+	var arg1 bool
 	if tmp, ok := rawArgs["outOfPrint"]; ok {
-		arg1, err = ec.unmarshalOBoolean2ᚖbool(ctx, tmp)
+		arg1, err = ec.unmarshalNBoolean2bool(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -596,14 +596,14 @@ func (ec *executionContext) field_Query_oneAuthor_args(ctx context.Context, rawA
 		}
 	}
 	args["dateOfBirth"] = arg3
-	var arg4 *bool
-	if tmp, ok := rawArgs["alive"]; ok {
-		arg4, err = ec.unmarshalOBoolean2ᚖbool(ctx, tmp)
+	var arg4 *time.Time
+	if tmp, ok := rawArgs["dateOfDeath"]; ok {
+		arg4, err = ec.unmarshalOTime2ᚖtimeᚐTime(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["alive"] = arg4
+	args["dateOfDeath"] = arg4
 	return args, nil
 }
 
@@ -984,10 +984,10 @@ func (ec *executionContext) _Book_authors(ctx context.Context, field graphql.Col
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]supersimple.Author)
+	res := resTmp.([]primitive.ObjectID)
 	rctx.Result = res
 	ctx = ec.Tracer.StartFieldChildExecution(ctx)
-	return ec.marshalNAuthor2ᚕgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx, field.Selections, res)
+	return ec.marshalNID2ᚕgoᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Book_title(ctx context.Context, field graphql.CollectedField, obj *supersimple.Book) (ret graphql.Marshaler) {
@@ -1377,7 +1377,7 @@ func (ec *executionContext) _Mutation_updateBook(ctx context.Context, field grap
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().UpdateBook(rctx, args["id"].(primitive.ObjectID), args["outOfPrint"].(*bool))
+		return ec.resolvers.Mutation().UpdateBook(rctx, args["id"].(primitive.ObjectID), args["outOfPrint"].(bool))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1465,7 +1465,7 @@ func (ec *executionContext) _Query_oneAuthor(ctx context.Context, field graphql.
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().OneAuthor(rctx, args["id"].(*primitive.ObjectID), args["first"].(*string), args["last"].(*string), args["dateOfBirth"].(*time.Time), args["alive"].(*bool))
+		return ec.resolvers.Query().OneAuthor(rctx, args["id"].(*primitive.ObjectID), args["first"].(*string), args["last"].(*string), args["dateOfBirth"].(*time.Time), args["dateOfDeath"].(*time.Time))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -3414,43 +3414,6 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 func (ec *executionContext) marshalNAuthor2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx context.Context, sel ast.SelectionSet, v supersimple.Author) graphql.Marshaler {
 	return ec._Author(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNAuthor2ᚕgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx context.Context, sel ast.SelectionSet, v []supersimple.Author) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		rctx := &graphql.ResolverContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithResolverContext(ctx, rctx)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalNAuthor2githubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
-	return ret
 }
 
 func (ec *executionContext) marshalNAuthor2ᚕᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐAuthor(ctx context.Context, sel ast.SelectionSet, v []*supersimple.Author) graphql.Marshaler {
