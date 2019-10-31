@@ -103,7 +103,7 @@ func (r *mutationResolver) CreateBook(ctx context.Context, input supersimple.New
 	ctx, collection := GoMongo("simple", "books")
 
 	b := &supersimple.Book{
-		Authors:     input.Authors,
+		AuthorIDs:   input.AuthorIDs,
 		Title:       input.Title,
 		Genre:       input.Genre,
 		Description: input.Description,
@@ -185,7 +185,6 @@ func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, f
 	}
 
 	var a supersimple.Author
-
 	pipeline := []bson.D{
 		bson.D{
 			{
@@ -197,7 +196,7 @@ func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, f
 				"$lookup", bson.D{
 					{"from", "books"},
 					{"localField", "_id"},
-					{"foreignField", "authors.author_id"},
+					{"foreignField", "author_id"},
 					{"as", "books"},
 				},
 			},
@@ -219,6 +218,7 @@ func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, f
 		if err := cur.Decode(&a); err != nil {
 			log.Fatal(err)
 		}
+		log.Printf("cursor is:\n\n%v", cur)
 	}
 
 	return &a, nil
@@ -260,7 +260,7 @@ func (r *queryResolver) OneBook(ctx context.Context, id *primitive.ObjectID, tit
 			{
 				"$lookup", bson.D{
 					{"from", "authors"},
-					{"localField", "authors.author_id"},
+					{"localField", "author_id"},
 					{"foreignField", "_id"},
 					{"as", "authors"},
 				},

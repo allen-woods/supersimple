@@ -1,5 +1,11 @@
 scalar Time
-scalar Map
+
+input NewAuthor {
+  first: String!
+  last: String!
+  dateOfBirth: Time!
+  dateOfDeath: Time
+}
 
 type Author {
   id: ID!
@@ -10,16 +16,8 @@ type Author {
   books: [Book!]!
 }
 
-input NewAuthor {
-  first: String!
-  last: String!
-  dateOfBirth: Time!
-  dateOfDeath: Time
-}
-
-type Book {
-  id: ID!
-  authors: [Map!]!
+input NewBook {
+  authorIds: [ID!]!
   title: String!
   genre: String!
   description: String!
@@ -27,8 +25,9 @@ type Book {
   outOfPrint: Boolean!
 }
 
-input NewBook {
-  authors: [ID!]!
+type Book {
+  id: ID!
+  authors: [Author!]!
   title: String!
   genre: String!
   description: String!
