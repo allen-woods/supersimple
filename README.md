@@ -6,16 +6,15 @@ This is a non-project research repo for cementing fundamentals of Gqlgen, as wel
 
 # TODO:
 
-- Implement Book and Author models.
-- Use aggregation to join Authors and Books:
-  - Books contain an array of Author IDs.
-  - Authors can match their ID with Books.
+- Implement Gorilla Sessions middleware.
+- Add Redistore as persisted session store.
+- Add Dataloaden to prevent N+1 problem.
+- Add Indexes to the documents in the database to prevent worsening performance as data store grows.
+- Add CSRF middleware to protect the server.
 
-# Joins:
+# DONE:
 
-- Authors
-  - .books returns an array of Books
-- Books
-  - .authors returns an array of Authors
-
-> **Note:** Research how to use `$lookup` inside of `bson` package.
+- Implemented full CRUD in GraphQL.
+- Implemented support for APQ running on Redis.
+- Implemented aggregation pipelines for many to many by reference in MongoDB.
+- Implemented marshal and unmarshal for ObjectIDs provided by `bson/primitive` package.

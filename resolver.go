@@ -185,6 +185,7 @@ func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, f
 	}
 
 	var a supersimple.Author
+
 	pipeline := []bson.D{
 		bson.D{
 			{
@@ -198,6 +199,13 @@ func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, f
 					{"localField", "_id"},
 					{"foreignField", "author_id"},
 					{"as", "books"},
+				},
+			},
+		},
+		bson.D{
+			{
+				"$project", bson.D{
+					{"books.authors", 0},
 				},
 			},
 		},
@@ -218,7 +226,6 @@ func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, f
 		if err := cur.Decode(&a); err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("cursor is:\n\n%v", cur)
 	}
 
 	return &a, nil
@@ -263,6 +270,13 @@ func (r *queryResolver) OneBook(ctx context.Context, id *primitive.ObjectID, tit
 					{"localField", "author_id"},
 					{"foreignField", "_id"},
 					{"as", "authors"},
+				},
+			},
+		},
+		bson.D{
+			{
+				"$project", bson.D{
+					{"authors.books", 0},
 				},
 			},
 		},

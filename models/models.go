@@ -27,7 +27,7 @@ type Author struct {
 }
 
 type NewBook struct {
-	AuthorIDs   []primitive.ObjectID `bson:"_id,omitempty"`
+	AuthorIDs   []primitive.ObjectID `bson:"author_id,omitempty"`
 	Title       string
 	Genre       string
 	Description string
