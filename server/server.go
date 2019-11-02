@@ -9,11 +9,13 @@ import (
 
 	"github.com/99designs/gqlgen/handler"
 	"github.com/allen-woods/supersimple"
+	"github.com/go-chi/chi"
 	"github.com/go-redis/redis"
+	"github.com/gorilla/csrf"
+	"github.com/gorilla/sessions"
+	"github.com/rbcervilla/redisstore"
 
-	//"github.com/gorilla/sessions"
 	"github.com/pkg/errors"
-	//"github.com/rbcervilla/redisstore"
 )
 
 type Cache struct {
@@ -26,11 +28,22 @@ const defaultPort = "8080"
 const redisAddr = "localhost:6379"
 const redisPass = ""
 
-func NewCache(redisAddress string, password string, ttl time.Duration) (*Cache, error) {
-	client := redis.NewClient(&redis.Options{
-		Addr: redisAddress,
+func NewClient() *redis.Client {
+	return redis.NewClient(&redis.Options{
+		Addr: redisAddr,
 	})
+}
 
+func NewStore(client *redis.Client) *redisstore.RedisStore {
+	store, err := redisstore.NewRedisStore(client)
+	if err != nil {
+		log.Fatal("failed to create redis store: ", err)
+	}
+
+	return store
+}
+
+func NewCache(client *redis.Client, redisAddress string, password string, ttl time.Duration) (*Cache, error) {
 	err := client.Ping().Err()
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -57,42 +70,41 @@ func main() {
 		port = defaultPort
 	}
 
-	cache, err := NewCache(redisAddr, redisPass, 24*time.Hour)
+	client := NewClient()
+
+	store := NewStore(client)
+
+	store.KeyPrefix("session_")
+	store.Options(sessions.Options{
+		Path:   "/",
+		Domain: "localhost:" + port,
+		MaxAge: 86400 * 60,
+	})
+
+	cache, err := NewCache(client, redisAddr, redisPass, 24*time.Hour)
+
 	if err != nil {
 		log.Fatalf("cannot create APQ redis cache: %v", err)
 	}
 
-	http.Handle("/", handler.Playground("GraphQL playground", "/query"))
-	http.Handle("/query", handler.GraphQL(
+	router := chi.NewRouter()
+
+	router.Handle("/", handler.Playground("GraphQL playground", "/query"))
+	router.Handle("/query", handler.GraphQL(
 		supersimple.NewExecutableSchema(supersimple.Config{Resolvers: &supersimple.Resolver{}}),
 		handler.EnablePersistedQueryCache(cache),
 	))
+
+	err = http.ListenAndServe(":"+port,
+		csrf.Protect(
+			[]byte("32-byte-long-auth-key"),
+			csrf.Secure(true),
+		)(router),
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
-
-// package main
-
-// import (
-// 	"log"
-// 	"net/http"
-// 	"os"
-
-// 	"github.com/99designs/gqlgen/handler"
-// 	"github.com/allen-woods/supersimple"
-// )
-
-// const defaultPort = "8080"
-
-// func main() {
-// 	port := os.Getenv("PORT")
-// 	if port == "" {
-// 		port = defaultPort
-// 	}
-
-// 	http.Handle("/", handler.Playground("GraphQL playground", "/query"))
-// 	http.Handle("/query", handler.GraphQL(supersimple.NewExecutableSchema(supersimple.Config{Resolvers: &supersimple.Resolver{}})))
-
-// 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
-// 	log.Fatal(http.ListenAndServe(":"+port, nil))
-//}
