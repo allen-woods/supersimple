@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/sessions"
 	"github.com/rbcervilla/redisstore"
+	"github.com/rs/cors"
 
 	"github.com/pkg/errors"
 )
@@ -66,6 +67,7 @@ func (c *Cache) Get(ctx context.Context, hash string) (string, bool) {
 
 func main() {
 	port := os.Getenv("PORT")
+
 	if port == "" {
 		port = defaultPort
 	}
@@ -88,6 +90,12 @@ func main() {
 	}
 
 	router := chi.NewRouter()
+
+	router.Use(cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:8080"},
+		AllowCredentials: true,
+		Debug:            true,
+	}).Handler)
 
 	router.Handle("/", handler.Playground("GraphQL playground", "/query"))
 	router.Handle("/query", handler.GraphQL(

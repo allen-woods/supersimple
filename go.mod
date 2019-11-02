@@ -14,6 +14,7 @@ require (
 	github.com/onsi/ginkgo v1.10.2 // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/rbcervilla/redisstore v1.0.2
+	github.com/rs/cors v1.6.0
 	github.com/vektah/gqlparser v1.1.2
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c // indirect
 	github.com/xdg/stringprep v1.0.0 // indirect
