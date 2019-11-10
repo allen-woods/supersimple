@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	db "github.com/allen-woods/supersimple/database"
 	supersimple "github.com/allen-woods/supersimple/models"
 	"go.mongodb.org/mongo-driver/bson"
 	primitive "go.mongodb.org/mongo-driver/bson/primitive"
@@ -14,20 +15,6 @@ import (
 )
 
 // THIS CODE IS A STARTING POINT ONLY. IT WILL NOT BE UPDATED WITH SCHEMA CHANGES.
-
-func GoMongo(db string, col string) (context.Context, *mongo.Collection) {
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
-	err = client.Ping(ctx, readpref.Primary())
-
-	if err != nil {
-		log.Fatal("No database was found. Is MongoDB running?")
-	}
-
-	collection := client.Database(db).Collection(col)
-
-	return ctx, collection
-}
 
 type Resolver struct{}
 
@@ -41,7 +28,7 @@ func (r *Resolver) Query() QueryResolver {
 type mutationResolver struct{ *Resolver }
 
 func (r *mutationResolver) CreateAuthor(ctx context.Context, input supersimple.NewAuthor) (*supersimple.Author, error) {
-	ctx, collection := GoMongo("simple", "authors")
+	ctx, collection := db.GoMongo("simple", "authors")
 
 	a := &supersimple.Author{
 		First:       input.First,
@@ -59,7 +46,7 @@ func (r *mutationResolver) CreateAuthor(ctx context.Context, input supersimple.N
 	return a, nil
 }
 func (r *mutationResolver) UpdateAuthor(ctx context.Context, id primitive.ObjectID, dateOfDeath time.Time) (*supersimple.Author, error) {
-	ctx, collection := GoMongo("simple", "authors")
+	ctx, collection := db.GoMongo("simple", "authors")
 
 	filter := bson.D{
 		{"_id", id},
@@ -85,7 +72,7 @@ func (r *mutationResolver) UpdateAuthor(ctx context.Context, id primitive.Object
 	return &a, nil
 }
 func (r *mutationResolver) DeleteAuthor(ctx context.Context, id primitive.ObjectID) (*supersimple.Author, error) {
-	ctx, collection := GoMongo("simple", "authors")
+	ctx, collection := db.GoMongo("simple", "authors")
 
 	filter := bson.D{
 		{"_id", id},
@@ -100,7 +87,7 @@ func (r *mutationResolver) DeleteAuthor(ctx context.Context, id primitive.Object
 	return &a, nil
 }
 func (r *mutationResolver) CreateBook(ctx context.Context, input supersimple.NewBook) (*supersimple.Book, error) {
-	ctx, collection := GoMongo("simple", "books")
+	ctx, collection := db.GoMongo("simple", "books")
 
 	b := &supersimple.Book{
 		AuthorIDs:   input.AuthorIDs,
@@ -120,7 +107,7 @@ func (r *mutationResolver) CreateBook(ctx context.Context, input supersimple.New
 	return b, nil
 }
 func (r *mutationResolver) UpdateBook(ctx context.Context, id primitive.ObjectID, outOfPrint bool) (*supersimple.Book, error) {
-	ctx, collection := GoMongo("simple", "books")
+	ctx, collection := db.GoMongo("simple", "books")
 
 	filter := bson.D{
 		{"_id", id},
@@ -146,7 +133,7 @@ func (r *mutationResolver) UpdateBook(ctx context.Context, id primitive.ObjectID
 	return &b, nil
 }
 func (r *mutationResolver) DeleteBook(ctx context.Context, id primitive.ObjectID) (*supersimple.Book, error) {
-	ctx, collection := GoMongo("simple", "books")
+	ctx, collection := db.GoMongo("simple", "books")
 
 	filter := bson.D{
 		{"_id", id},
@@ -164,7 +151,7 @@ func (r *mutationResolver) DeleteBook(ctx context.Context, id primitive.ObjectID
 type queryResolver struct{ *Resolver }
 
 func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, first *string, last *string, dateOfBirth *time.Time, dateOfDeath *time.Time) (*supersimple.Author, error) {
-	ctx, collection := GoMongo("simple", "authors")
+	ctx, collection := db.GoMongo("simple", "authors")
 
 	var filter bson.D
 
@@ -232,7 +219,7 @@ func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, f
 }
 
 func (r *queryResolver) OneBook(ctx context.Context, id *primitive.ObjectID, title *string, genre *string, description *string, publisher *string, outOfPrint *bool) (*supersimple.Book, error) {
-	ctx, collection := GoMongo("simple", "books")
+	ctx, collection := db.GoMongo("simple", "books")
 
 	var filter bson.D
 
@@ -302,7 +289,7 @@ func (r *queryResolver) OneBook(ctx context.Context, id *primitive.ObjectID, tit
 	return &b, nil
 }
 func (r *queryResolver) Authors(ctx context.Context) ([]*supersimple.Author, error) {
-	ctx, collection := GoMongo("simple", "authors")
+	ctx, collection := db.GoMongo("simple", "authors")
 
 	var results []*supersimple.Author
 
@@ -329,7 +316,7 @@ func (r *queryResolver) Authors(ctx context.Context) ([]*supersimple.Author, err
 	return results, nil
 }
 func (r *queryResolver) Books(ctx context.Context) ([]*supersimple.Book, error) {
-	ctx, collection := GoMongo("simple", "book")
+	ctx, collection := db.GoMongo("simple", "book")
 
 	var results []*supersimple.Book
 

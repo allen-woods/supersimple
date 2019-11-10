@@ -18,3 +18,22 @@ This is a non-project research repo for cementing fundamentals of Gqlgen, as wel
 - Implemented Gorilla Sessions middleware.
 - Added Redisstore as persisted session store.
 - Added CSRF middleware to protect the server.
+
+# Sessions
+
+The implementation of `gorilla/sessions` exists, but it needs to be fleshed out to actually be tested for proper functioning.
+
+Below is a pseudo-code approximation for what needs to be done:
+
+```go
+// Create a User type with full CRUD support.
+// Create schema directives for "guest" and "auth".
+// Create mutations for authenticating a User.
+type Mutation {
+  signUp(email: String!, username: String!, name: String!, password: String!): User @guest
+  signIn(email: String!, password: String!): User @guest
+  signOut(): Boolean @auth
+}
+// Create an authentication middleware.
+// Check for authentication inside of the resolvers.
+```

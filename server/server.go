@@ -9,11 +9,10 @@ import (
 
 	"github.com/99designs/gqlgen/handler"
 	"github.com/allen-woods/supersimple"
+	"github.com/allen-woods/supersimple/auth"
 	"github.com/go-chi/chi"
 	"github.com/go-redis/redis"
 	"github.com/gorilla/csrf"
-	"github.com/gorilla/sessions"
-	"github.com/rbcervilla/redisstore"
 	"github.com/rs/cors"
 
 	"github.com/pkg/errors"
@@ -33,15 +32,6 @@ func NewClient() *redis.Client {
 	return redis.NewClient(&redis.Options{
 		Addr: redisAddr,
 	})
-}
-
-func NewStore(client *redis.Client) *redisstore.RedisStore {
-	store, err := redisstore.NewRedisStore(client)
-	if err != nil {
-		log.Fatal("failed to create redis store: ", err)
-	}
-
-	return store
 }
 
 func NewCache(client *redis.Client, redisAddress string, password string, ttl time.Duration) (*Cache, error) {
@@ -74,17 +64,7 @@ func main() {
 
 	client := NewClient()
 
-	store := NewStore(client)
-
-	store.KeyPrefix("session_")
-	store.Options(sessions.Options{
-		Path:   "/",
-		Domain: "localhost:" + port,
-		MaxAge: 86400 * 60,
-	})
-
 	cache, err := NewCache(client, redisAddr, redisPass, 24*time.Hour)
-
 	if err != nil {
 		log.Fatalf("cannot create APQ redis cache: %v", err)
 	}
@@ -94,8 +74,10 @@ func main() {
 	router.Use(cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:8080"},
 		AllowCredentials: true,
-		Debug:            true,
+		Debug:            false,
 	}).Handler)
+
+	router.Use(auth.Middleware())
 
 	router.Handle("/", handler.Playground("GraphQL playground", "/query"))
 	router.Handle("/query", handler.GraphQL(
@@ -103,16 +85,16 @@ func main() {
 		handler.EnablePersistedQueryCache(cache),
 	))
 
+	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
+
 	err = http.ListenAndServe(":"+port,
 		csrf.Protect(
 			[]byte("32-byte-long-auth-key"),
-			csrf.Secure(true),
+			csrf.Secure(false),
+			csrf.CookieName("_csrf"),
 		)(router),
 	)
-
 	if err != nil {
 		panic(err)
 	}
-
-	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
 }
