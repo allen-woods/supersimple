@@ -10,6 +10,10 @@ exec:
 model:
   filename: models_gen.go
 models:
+  NewUser:
+    model: github.com/allen-woods/supersimple/models.NewUser
+  User:
+    model: github.com/allen-woods/supersimple/models.User
   NewAuthor:
     model: github.com/allen-woods/supersimple/models.NewAuthor
   Author:

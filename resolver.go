@@ -5,13 +5,14 @@ import (
 	"log"
 	"time"
 
+	"github.com/allen-woods/supersimple/auth"
 	db "github.com/allen-woods/supersimple/database"
 	supersimple "github.com/allen-woods/supersimple/models"
+	uuid "github.com/satori/go.uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	primitive "go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 // THIS CODE IS A STARTING POINT ONLY. IT WILL NOT BE UPDATED WITH SCHEMA CHANGES.
@@ -26,6 +27,68 @@ func (r *Resolver) Query() QueryResolver {
 }
 
 type mutationResolver struct{ *Resolver }
+
+func (r *mutationResolver) SignUp(ctx context.Context, input *supersimple.NewUser) (*supersimple.User, error) {
+	ctx, collection := db.GoMongo("simple", "users")
+
+	// Enforce unique values for the "email" field.
+	collection.Indexes().CreateOne(
+		ctx,
+		mongo.IndexModel{
+			Keys:    bson.D{{"email", 1}},
+			Options: options.Index().SetUnique(true),
+		},
+	)
+
+	// Hash and salt the password through bcrypt.
+	securePassword, err := auth.HashAndSalt(input.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	u := &supersimple.User{
+		Email:    input.Email,
+		Name:     input.Name,
+		UserName: input.UserName,
+		Password: securePassword,
+	}
+
+	res, err := collection.InsertOne(ctx, *u)
+	if err != nil {
+		return nil, err
+	}
+
+	id := res.InsertedID
+	u.ID = id.(primitive.ObjectID)
+
+	sessionID := uuid.NewV4().String()
+
+	err = auth.WriteToRedis(sessionID, id.(primitive.ObjectID).Hex())
+	if err != nil {
+		return nil, err
+	}
+
+	persistedID, err := auth.ReadFromRedis(sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	if persistedID == id.(primitive.ObjectID).Hex() {
+		auth.TransferUUID(sessionID)
+	}
+
+	return u, nil
+}
+
+func (r *mutationResolver) LogInUser(ctx context.Context, input *supersimple.NewUser) (*supersimple.User, error) {
+	panic("not implemented")
+}
+func (r *mutationResolver) LogOutUser(ctx context.Context, id primitive.ObjectID) (bool, error) {
+	panic("not implemented")
+}
+func (r *mutationResolver) DeleteAccount(ctx context.Context, id primitive.ObjectID) (bool, error) {
+	panic("not implemented")
+}
 
 func (r *mutationResolver) CreateAuthor(ctx context.Context, input supersimple.NewAuthor) (*supersimple.Author, error) {
 	ctx, collection := db.GoMongo("simple", "authors")
@@ -149,6 +212,13 @@ func (r *mutationResolver) DeleteBook(ctx context.Context, id primitive.ObjectID
 }
 
 type queryResolver struct{ *Resolver }
+
+func (r *queryResolver) Me(ctx context.Context) (*supersimple.User, error) {
+	panic("not implemented")
+}
+func (r *queryResolver) Users(ctx context.Context) ([]*supersimple.User, error) {
+	panic("not implemented")
+}
 
 func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, first *string, last *string, dateOfBirth *time.Time, dateOfDeath *time.Time) (*supersimple.Author, error) {
 	ctx, collection := db.GoMongo("simple", "authors")

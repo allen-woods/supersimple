@@ -1,10 +1,13 @@
 package database
 
 import (
-	context
-	log
+	"context"
+	"log"
+	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 // GoMongo provides connectivity to a MongoDB database.

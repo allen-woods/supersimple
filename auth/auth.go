@@ -4,41 +4,42 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
+	"log"
 	"net/http"
 	"os"
 
-	db "github.com/allen-woods/supersimple/database"
 	"github.com/go-redis/redis"
 	"github.com/gorilla/securecookie"
-	"github.com/rbcervilla/redisstore"
 	uuid "github.com/satori/go.uuid"
-	"go.mongodb.org/mongo-driver/bson"
+	"golang.org/x/crypto/bcrypt"
 )
 
-var cookieHash []byte
-var cookieKey []byte
-var scInstance *securecookie.SecureCookie
+var uniqueUserID struct {
+	id string
+}
 
-var store *redisstore.RedisStore
-var userCtxKey = &contextKey{name: "user"}
+var validateCookie struct {
+	hash []byte
+	key  []byte
+}
+
+var sc *securecookie.SecureCookie
+
+var uniqueUserIDCtxKey = &contextKey{"uuid"}
 
 type contextKey struct {
 	name string
 }
 
-type User struct {
-	Email    string
-	Name     string
-	UserName string
-	IsAdmin  bool
-}
-
-/*	Source 1:
+/*	Source 2:
 	https://stackoverflow.com/questions/32349807/how-can-i-generate-a-random-int-using-the-crypto-rand-package
 */
 func GenerateRandomBytes(n int) ([]byte, error) {
 	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
+
+	_, err := rand.Read(b)
+	if err != nil {
 		return nil, err
 	}
 
@@ -52,15 +53,15 @@ func GenerateRandomString(s int) (string, error) {
 	return base64.URLEncoding.EncodeToString(b), err
 }
 
-/* End Source 1 */
+/* End Source 2 */
 
-/*	Source 2:
+/*	Source 3:
 	https://www.gorillatoolkit.org/pkg/securecookie
 */
 func SetEnvironmentVariables() error {
 	h := os.Getenv("COOKIE_HASH")
 	if h == "" {
-		hs, err := GenerateRandomString(32)
+		hs, err := GenerateRandomString(24)
 		if err != nil {
 			return err
 		}
@@ -71,7 +72,7 @@ func SetEnvironmentVariables() error {
 
 	k := os.Getenv("COOKIE_KEY")
 	if k == "" {
-		ks, err := GenerateRandomString(32)
+		ks, err := GenerateRandomString(24)
 		if err != nil {
 			return err
 		}
@@ -80,38 +81,23 @@ func SetEnvironmentVariables() error {
 		os.Setenv("COOKIE_KEY", ks)
 	}
 
-	cookieHash = []byte(os.Getenv("COOKIE_HASH"))
-	cookieKey = []byte(os.Getenv("COOKIE_KEY"))
+	validateCookie.hash = []byte(os.Getenv("COOKIE_HASH"))
+	validateCookie.key = []byte(os.Getenv("COOKIE_KEY"))
+	sc = securecookie.New(validateCookie.hash, validateCookie.key)
 
 	return nil
 }
 
-func SetCookieHandler(w http.ResponseWriter, r *http.Request, sID string) error {
-	// This function must be passed a valid uuid.NewV4().String()
-	// as its sID argument.
-	scInstance = securecookie.New(cookieHash, cookieKey)
-
-	value := map[string]string{
-		"sessionID": sID,
-	}
-
-	encoded, err := scInstance.Encode("sid", value)
+func HashAndSalt(pw string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	cookie := &http.Cookie{
-		Name:  "sid",
-		Value: encoded,
-		Path:  "/",
-	}
-
-	http.SetCookie(w, cookie)
-
-	return nil
+	return string(hash), nil
 }
 
-func ReadCookieHandler(w http.ResponseWriter, r *http.Request) (string, error) {
+func ReadSessionIDFromCookie(w http.ResponseWriter, r *http.Request) (string, error) {
 	cookie, err := r.Cookie("sid")
 	if err != nil {
 		return "", err
@@ -119,13 +105,11 @@ func ReadCookieHandler(w http.ResponseWriter, r *http.Request) (string, error) {
 
 	value := make(map[string]string)
 
-	err = scInstance.Decode("sid", cookie.Value, &value)
+	err = sc.Decode("sid", cookie.Value, &value)
 	if err != nil {
 		return "", err
 	}
 
-	// This function validates the uuid as genuine before
-	// returning it.
 	validSessionID, err := uuid.FromString(value["sessionID"])
 	if err != nil {
 		return "", err
@@ -134,7 +118,7 @@ func ReadCookieHandler(w http.ResponseWriter, r *http.Request) (string, error) {
 	return validSessionID.String(), nil
 }
 
-/* End Source 2 */
+/* End Source 3 */
 
 func ReadFromRedis(sessionID string) (string, error) {
 	client := redis.NewClient(&redis.Options{
@@ -173,64 +157,38 @@ func WriteToRedis(sessionID string, userID string) error {
 	return nil
 }
 
-func validateAndGetUserID(w http.ResponseWriter, r *http.Request) (string, error) {
-	/* In this function:
-
-	uuid.NewV4().String()
-
-	- Use sessions to validate the cookie.
-	- Use cookie value to find session in Redis.
-	- Use session value to retrieve user id.
-
-	*/
-	sessionID, err := ReadCookieHandler(w, r)
-	if err != nil {
-		return "", err
-	}
-
-	userID, err := ReadFromRedis(sessionID)
-	if err != nil {
-		return "", err
-	}
-
-	return userID, nil
-}
-
-func getUserByID(userID string) *User {
-	_, collection := db.GoMongo("simple", "users")
-
-	user := collection.FindOne(context.Background(), bson.D{{"_id", userID}})
-
-	return &user
-}
-
-func Middleware() func(http.Handler) http.Handler {
+func Middleware() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			c, err := r.Cookie("sid")
+			SetEnvironmentVariables()
 
-			if err != nil || c == nil {
-				next.ServeHTTP(w, r)
-				return
+			if len(uniqueUserID.id) > 0 {
+				encoded, err := sc.Encode("sessionID", uniqueUserID.id)
+				if err != nil {
+					log.Fatal("Failed to encode sessionID")
+				}
+
+				cookie := &http.Cookie{
+					Name:     "sid",
+					Value:    encoded,
+					HttpOnly: true,
+					Path:     "/",
+					//Domain:   "127.0.0.1",
+					MaxAge: 24 * 60 * 60,
+				}
+
+				http.SetCookie(w, cookie)
+				fmt.Println("Cookie should have been set")
+				uniqueUserID.id = ""
 			}
 
-			userID, err := validateAndGetUserID(w, r)
-			if err != nil {
-				http.Error(w, "Invalid cookie", http.StatusForbidden)
-				return
-			}
-
-			user := getUserByID(userID)
-
-			ctx := context.WithValue(r.Context(), userCtxKey, user)
-
+			ctx := context.WithValue(r.Context(), uniqueUserIDCtxKey, uniqueUserID.id)
 			r = r.WithContext(ctx)
 			next.ServeHTTP(w, r)
 		})
 	}
 }
 
-func ForContext(ctx context.Context) *User {
-	raw, _ := ctx.Value(userCtxKey).(*User)
-	return raw
+func TransferUUID(uuid string) {
+	uniqueUserID.id = uuid
 }

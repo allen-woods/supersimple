@@ -1,5 +1,20 @@
 scalar Time
 
+input NewUser {
+  email: String!
+  name: String!
+  userName: String!
+  password: String!
+}
+
+type User {
+  id: ID!
+  email: String!
+  name: String!
+  userName: String!
+  password: String!
+}
+
 input NewAuthor {
   first: String!
   last: String!
@@ -36,6 +51,10 @@ type Book {
 }
 
 type Query {
+  # "Read" User
+  me: User
+  # "Index" User
+  users: [User!]!
   oneAuthor(
     id: ID
     first: String
@@ -56,6 +75,14 @@ type Query {
 }
 
 type Mutation {
+  # "Create" User
+  signUp(input: NewUser): User
+  # "Update" User
+  logInUser(input: NewUser): User
+  logOutUser(id: ID!): Boolean!
+  # "Delete" User
+  deleteAccount(id: ID!): Boolean!
+
   createAuthor(input: NewAuthor!): Author!
   updateAuthor(id: ID!, dateOfDeath: Time!): Author!
   deleteAuthor(id: ID!): Author!

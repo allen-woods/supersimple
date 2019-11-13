@@ -12,7 +12,6 @@ import (
 	"github.com/allen-woods/supersimple/auth"
 	"github.com/go-chi/chi"
 	"github.com/go-redis/redis"
-	"github.com/gorilla/csrf"
 	"github.com/rs/cors"
 
 	"github.com/pkg/errors"
@@ -76,7 +75,6 @@ func main() {
 		AllowCredentials: true,
 		Debug:            false,
 	}).Handler)
-
 	router.Use(auth.Middleware())
 
 	router.Handle("/", handler.Playground("GraphQL playground", "/query"))
@@ -88,11 +86,12 @@ func main() {
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
 
 	err = http.ListenAndServe(":"+port,
-		csrf.Protect(
-			[]byte("32-byte-long-auth-key"),
-			csrf.Secure(false),
-			csrf.CookieName("_csrf"),
-		)(router),
+		// csrf.Protect(
+		// 	[]byte("32-byte-long-auth-key"),
+		// 	csrf.Secure(false),
+		// 	csrf.CookieName("_csrf"),
+		// )(
+		router,
 	)
 	if err != nil {
 		panic(err)
