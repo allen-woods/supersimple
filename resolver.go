@@ -11,7 +11,6 @@ import (
 	uuid "github.com/satori/go.uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	primitive "go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -31,14 +30,10 @@ type mutationResolver struct{ *Resolver }
 func (r *mutationResolver) SignUp(ctx context.Context, input *supersimple.NewUser) (*supersimple.User, error) {
 	ctx, collection := db.GoMongo("simple", "users")
 
-	// Enforce unique values for the "email" field.
-	collection.Indexes().CreateOne(
-		ctx,
-		mongo.IndexModel{
-			Keys:    bson.D{{"email", 1}},
-			Options: options.Index().SetUnique(true),
-		},
-	)
+	err := db.RequireUniqueEmailFields(ctx, collection)
+	if err != nil {
+		log.Fatal("Failed to require unique email fields:", err)
+	}
 
 	// Hash and salt the password through bcrypt.
 	securePassword, err := auth.HashAndSalt(input.Password)
