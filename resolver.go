@@ -2,13 +2,13 @@ package supersimple
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/allen-woods/supersimple/auth"
 	db "github.com/allen-woods/supersimple/database"
 	supersimple "github.com/allen-woods/supersimple/models"
-	uuid "github.com/satori/go.uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	primitive "go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -55,22 +55,7 @@ func (r *mutationResolver) SignUp(ctx context.Context, input *supersimple.NewUse
 
 	id := res.InsertedID
 	u.ID = id.(primitive.ObjectID)
-
-	sessionID := uuid.NewV4().String()
-
-	err = auth.WriteToRedis(sessionID, id.(primitive.ObjectID).Hex())
-	if err != nil {
-		return nil, err
-	}
-
-	persistedID, err := auth.ReadFromRedis(sessionID)
-	if err != nil {
-		return nil, err
-	}
-
-	if persistedID == id.(primitive.ObjectID).Hex() {
-		auth.TransferUUID(sessionID)
-	}
+	auth.InsertUserID(id.(primitive.ObjectID).Hex())
 
 	return u, nil
 }
@@ -79,7 +64,9 @@ func (r *mutationResolver) LogInUser(ctx context.Context, input *supersimple.New
 	panic("not implemented")
 }
 func (r *mutationResolver) LogOutUser(ctx context.Context, id primitive.ObjectID) (bool, error) {
-	panic("not implemented")
+	userID := auth.ForContext(ctx)
+	fmt.Println("This would have logged out the user with the id:", userID)
+	return true, nil
 }
 func (r *mutationResolver) DeleteAccount(ctx context.Context, id primitive.ObjectID) (bool, error) {
 	panic("not implemented")

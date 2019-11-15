@@ -4,10 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-redis/redis"
 	"github.com/gorilla/securecookie"
@@ -15,7 +15,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var uniqueUserID struct {
+var authenticatedUserID struct {
 	id string
 }
 
@@ -26,13 +26,13 @@ var validateCookie struct {
 
 var sc *securecookie.SecureCookie
 
-var uniqueUserIDCtxKey = &contextKey{"uuid"}
+var userIDCtxKey = &contextKey{"userID"}
 
 type contextKey struct {
 	name string
 }
 
-/*	Source 2:
+/*	Source 1:
 	https://stackoverflow.com/questions/32349807/how-can-i-generate-a-random-int-using-the-crypto-rand-package
 */
 func GenerateRandomBytes(n int) ([]byte, error) {
@@ -53,9 +53,9 @@ func GenerateRandomString(s int) (string, error) {
 	return base64.URLEncoding.EncodeToString(b), err
 }
 
-/* End Source 2 */
+/* End Source 1 */
 
-/*	Source 3:
+/*	Source 2:
 	https://www.gorillatoolkit.org/pkg/securecookie
 */
 func SetEnvironmentVariables() error {
@@ -118,9 +118,9 @@ func ReadSessionIDFromCookie(w http.ResponseWriter, r *http.Request) (string, er
 	return validSessionID.String(), nil
 }
 
-/* End Source 3 */
+/* End Source 2 */
 
-func ReadFromRedis(sessionID string) (string, error) {
+func ReadFromRedis(sessionID map[string]string) (string, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
@@ -130,7 +130,7 @@ func ReadFromRedis(sessionID string) (string, error) {
 	// Request only the value contained in the "userID"
 	// field within the hash whose address is "sessionID",
 	// formatted as a string.
-	userID, err := client.Do("HGET", sessionID, "userID").String()
+	userID, err := client.Do("HGET", sessionID["sessionID"], "userID").String()
 	if err != nil {
 		return "", err
 	}
@@ -138,7 +138,7 @@ func ReadFromRedis(sessionID string) (string, error) {
 	return userID, nil
 }
 
-func WriteToRedis(sessionID string, userID string) error {
+func WriteToRedis(sessionID map[string]string, userID string, ttl time.Time) error {
 	client := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
@@ -149,7 +149,12 @@ func WriteToRedis(sessionID string, userID string) error {
 	// sessionID and userID.
 	//
 	// (Automatically overwrites existing keys)
-	_, err := client.Do("HMSET", sessionID, "userID", userID).Result()
+	_, err := client.Do("HMSET", sessionID["sessionID"], "userID", userID).Result()
+	if err != nil {
+		return err
+	}
+
+	_, err = client.ExpireAt(sessionID["sessionID"], ttl).Result()
 	if err != nil {
 		return err
 	}
@@ -161,34 +166,131 @@ func Middleware() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			SetEnvironmentVariables()
+			maxAge := 24 * 60 * 60
+			expiration := time.Now().Add(24 * time.Hour)
 
-			if len(uniqueUserID.id) > 0 {
-				encoded, err := sc.Encode("sessionID", uniqueUserID.id)
+			// Check to see if a user was authenticated
+			// in our signUp or logIn mutations.
+			if len(authenticatedUserID.id) == 0 {
+				// Allow unauthenticated visitors to access the resolvers.
+				next.ServeHTTP(w, r)
+				return
+			} else if len(authenticatedUserID.id) > 0 {
+				// Look for a cookie when an authenticated user has been found.
+				c, err := r.Cookie("sid")
+
+				// The cookie won't exist for a new sign up.
+				if c == nil || err != nil {
+
+					// Give our new visitor a unique identifier.
+					sessionID := map[string]string{
+						"sessionID": uuid.NewV4().String(),
+					}
+
+					// Persist their uuid to Redis for 24 hours, in seconds.
+					err = WriteToRedis(sessionID, authenticatedUserID.id, expiration)
+					if err != nil {
+						log.Fatalln("Unable to write sessionID to Redis:", err)
+					}
+
+					// Extract the hash we just persisted.
+					persistedID, err := ReadFromRedis(sessionID)
+					if err != nil {
+						log.Fatalln("Unable to read sessionID from Redis:", err)
+					}
+
+					// Confirm the data was persisted and not corrupted or dropped.
+					if persistedID == authenticatedUserID.id {
+
+						// Encrypt the uuid using AES-256 algorithm.
+						encoded, err := sc.Encode("sid", sessionID)
+						if err != nil {
+							log.Fatalln("Failed to encode sessionID")
+						}
+
+						// Create the cookie to be set on the response.
+						//
+						// NOTE: In production, this cookie should have a Domain field specified.
+						//
+						cookie := &http.Cookie{
+							Name:     "sid",
+							Value:    encoded,
+							HttpOnly: true,
+							Path:     "/",
+							MaxAge:   maxAge,
+							Expires:  expiration,
+						}
+
+						// Set the cookie on response to the end user.
+						http.SetCookie(w, cookie)
+
+						// Update context and serve next handler.
+						ctx := context.WithValue(r.Context(), userIDCtxKey, authenticatedUserID.id)
+						r = r.WithContext(ctx)
+						next.ServeHTTP(w, r)
+						return
+					}
+				}
+				// The cookie will exist if the user is logged in.
+				//
+				// This is because we are persisting sessions, meaning
+				// we do not need to keep the Redis hash or session cookie
+				// after the user logs out.
+				cookie, err := r.Cookie("sid")
+
+				if cookie == nil || err != nil {
+					log.Fatalln("Unable to find cookie for logged in User:", err)
+				}
+
+				// Set aside a variable for receiving the sessionID from cookie.
+				sessionID := make(map[string]string)
+
+				err = sc.Decode("sid", cookie.Value, &sessionID)
 				if err != nil {
-					log.Fatal("Failed to encode sessionID")
+					log.Fatalln("The session cookie has been tampered with:", err)
 				}
 
-				cookie := &http.Cookie{
-					Name:     "sid",
-					Value:    encoded,
-					HttpOnly: true,
-					Path:     "/",
-					//Domain:   "127.0.0.1",
-					MaxAge: 24 * 60 * 60,
+				// Attempt to read the userID from Redis stored in the hash whose address is sessionID.
+				userID, err := ReadFromRedis(sessionID)
+				if err != nil {
+					log.Fatalln("Unable to read from Redis:", err)
 				}
 
+				// Extend the lifespan of the session to 24 hours from now, in seconds.
+				err = WriteToRedis(sessionID, userID, expiration)
+				if err != nil {
+					log.Fatalln("Unable to write sessionID to Redis:", err)
+				}
+
+				persistedID, err := ReadFromRedis(sessionID)
+				if err != nil {
+					log.Fatalln("Unable to read userID from Redis:", err)
+				}
+
+				// Update the lifespan of the session cookie to 24 hours from now, in seconds.
+				cookie.MaxAge = maxAge
+				cookie.Expires = expiration
+
+				// Set the cookie on response to the end user.
 				http.SetCookie(w, cookie)
-				fmt.Println("Cookie should have been set")
-				uniqueUserID.id = ""
-			}
 
-			ctx := context.WithValue(r.Context(), uniqueUserIDCtxKey, uniqueUserID.id)
-			r = r.WithContext(ctx)
-			next.ServeHTTP(w, r)
+				// place the extracted userID into a value of type that context can access
+				authenticatedUserID.id = persistedID
+
+				// Update context and serve next handler.
+				ctx := context.WithValue(r.Context(), userIDCtxKey, authenticatedUserID.id)
+				r = r.WithContext(ctx)
+				next.ServeHTTP(w, r)
+			}
 		})
 	}
 }
 
-func TransferUUID(uuid string) {
-	uniqueUserID.id = uuid
+func InsertUserID(userID string) {
+	authenticatedUserID.id = userID
+}
+
+func ForContext(ctx context.Context) string {
+	raw, _ := ctx.Value(userIDCtxKey).(string)
+	return raw
 }
