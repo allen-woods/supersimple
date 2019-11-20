@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql"
@@ -69,7 +70,7 @@ func MarshalID(id primitive.ObjectID) graphql.Marshaler {
 			log.Fatal("Error:", err)
 		}
 
-		io.WriteString(w, string(json))
+		io.WriteString(w, strconv.Quote(string(json)))
 	})
 }
 
@@ -83,7 +84,7 @@ func UnmarshalID(v interface{}) (primitive.ObjectID, error) {
 	if !ok {
 		err = errors.New("ids must be strings")
 	} else {
-		err = id.UnmarshalJSON([]byte(json))
+		err = id.UnmarshalJSON([]byte(strconv.Quote(json)))
 	}
 
 	return id, err
