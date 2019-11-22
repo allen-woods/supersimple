@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/allen-woods/supersimple/auth"
-	mdb "github.com/allen-woods/supersimple/database"
+	"github.com/allen-woods/supersimple/database"
 	supersimple "github.com/allen-woods/supersimple/models"
 	"go.mongodb.org/mongo-driver/bson"
 	primitive "go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -28,25 +29,35 @@ func (r *Resolver) Query() QueryResolver {
 type mutationResolver struct{ *Resolver }
 
 func (r *mutationResolver) SignUp(ctx context.Context, input *supersimple.NewUser) (*supersimple.User, error) {
-	client, err := mdb.GetClient()
+	// Create a client connected to a generic context.
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
-		return nil, err
+		log.Fatal("Unable to create client in signUp():", err)
 	}
 
-	db := *client.Database("simple")
-	collection := *db.Collection("users")
+	// Defer an immediately invoked function expression that disconnects the client.
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			log.Fatal("Unable to disconnect client from signUp():", err)
+		}
+	}()
 
-	err = mdb.RequireUniqueEmailFields(&collection)
+	// Point to the collection "users" in database "simple".
+	collection := *client.Database("simple").Collection("users")
+
+	// Enforce unique email values in the collection "users".
+	err = database.RequireUniqueEmailFields(&collection)
 	if err != nil {
 		log.Fatal("Failed to require unique email fields:", err)
 	}
 
-	// Hash and salt the password through bcrypt.
+	// Hash and salt the incoming password.
 	securePassword, err := auth.HashAndSalt(input.Password)
 	if err != nil {
 		return nil, err
 	}
 
+	// Prepare data for a new User.
 	u := &supersimple.User{
 		Email:    input.Email,
 		Name:     input.Name,
@@ -54,20 +65,20 @@ func (r *mutationResolver) SignUp(ctx context.Context, input *supersimple.NewUse
 		Password: securePassword,
 	}
 
-	ctx, err = mdb.GetContext()
-	if err != nil {
-		log.Fatalln("Failed to get context from database package:", err)
-	}
-
-	res, err := collection.InsertOne(ctx, *u)
+	// Insert the new User into our generic context.
+	res, err := collection.InsertOne(context.TODO(), *u)
 	if err != nil {
 		return nil, err
 	}
 
+	// Store the inserted "id".
 	id := res.InsertedID
+	// Assert the type of "id" to "primitive.ObjectID"
 	u.ID = id.(primitive.ObjectID)
+	// Pass the hex string of "id" to be consumed by authentication middleware.
 	auth.InsertUserID(id.(primitive.ObjectID).Hex())
 
+	// Return the User and no error
 	return u, nil
 }
 
@@ -84,13 +95,18 @@ func (r *mutationResolver) DeleteAccount(ctx context.Context, id primitive.Objec
 }
 
 func (r *mutationResolver) CreateAuthor(ctx context.Context, input supersimple.NewAuthor) (*supersimple.Author, error) {
-	client, err := mdb.GetClient()
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
-		return nil, err
+		log.Fatal("Unable to create client in createAuthor():", err)
 	}
 
-	db := *client.Database("simple")
-	collection := *db.Collection("authors")
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			log.Fatal("Unable to disconnect client from createAuthor():", err)
+		}
+	}()
+
+	collection := *client.Database("simple").Collection("authors")
 
 	a := &supersimple.Author{
 		First:       input.First,
@@ -99,16 +115,29 @@ func (r *mutationResolver) CreateAuthor(ctx context.Context, input supersimple.N
 		DateOfDeath: input.DateOfDeath,
 	}
 
-	res, err := collection.InsertOne(ctx, *a)
+	res, err := collection.InsertOne(context.TODO(), *a)
 	if err != nil {
 		log.Println(err)
 	}
+
 	id := res.InsertedID
 	a.ID = id.(primitive.ObjectID)
+
 	return a, nil
 }
 func (r *mutationResolver) UpdateAuthor(ctx context.Context, id primitive.ObjectID, dateOfDeath time.Time) (*supersimple.Author, error) {
-	ctx, collection := db.GoMongo("simple", "authors")
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		log.Fatal("Unable to create client in updateAuthor():", err)
+	}
+
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			log.Fatal("Unable to disconnect client from updateAuthor():", err)
+		}
+	}()
+
+	collection := *client.Database("simple").Collection("authors")
 
 	filter := bson.D{
 		{"_id", id},
@@ -127,14 +156,26 @@ func (r *mutationResolver) UpdateAuthor(ctx context.Context, id primitive.Object
 
 	var a supersimple.Author
 
-	err := collection.FindOneAndUpdate(ctx, filter, update, opts).Decode(&a)
+	err = collection.FindOneAndUpdate(context.TODO(), filter, update, opts).Decode(&a)
 	if err != nil {
 		log.Println("Error:", err)
 	}
+
 	return &a, nil
 }
 func (r *mutationResolver) DeleteAuthor(ctx context.Context, id primitive.ObjectID) (*supersimple.Author, error) {
-	ctx, collection := db.GoMongo("simple", "authors")
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		log.Fatal("Unable to create client in deleteAuthor():", err)
+	}
+
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			log.Fatal("Unable to disconnect client from deleteAuthor():", err)
+		}
+	}()
+
+	collection := *client.Database("simple").Collection("authors")
 
 	filter := bson.D{
 		{"_id", id},
@@ -142,14 +183,26 @@ func (r *mutationResolver) DeleteAuthor(ctx context.Context, id primitive.Object
 
 	var a supersimple.Author
 
-	err := collection.FindOneAndDelete(ctx, filter).Decode(&a)
+	err = collection.FindOneAndDelete(context.TODO(), filter).Decode(&a)
 	if err != nil {
 		log.Println("Error:", err)
 	}
+
 	return &a, nil
 }
 func (r *mutationResolver) CreateBook(ctx context.Context, input supersimple.NewBook) (*supersimple.Book, error) {
-	ctx, collection := db.GoMongo("simple", "books")
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		log.Fatal("Unable to create client in createBook():", err)
+	}
+
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			log.Fatal("Unable to disconnect client from createBook():", err)
+		}
+	}()
+
+	collection := *client.Database("simple").Collection("books")
 
 	b := &supersimple.Book{
 		AuthorIDs:   input.AuthorIDs,
@@ -160,16 +213,29 @@ func (r *mutationResolver) CreateBook(ctx context.Context, input supersimple.New
 		OutOfPrint:  input.OutOfPrint,
 	}
 
-	res, err := collection.InsertOne(ctx, *b)
+	res, err := collection.InsertOne(context.TODO(), *b)
 	if err != nil {
 		log.Println(err)
 	}
+
 	id := res.InsertedID
 	b.ID = id.(primitive.ObjectID)
+
 	return b, nil
 }
 func (r *mutationResolver) UpdateBook(ctx context.Context, id primitive.ObjectID, outOfPrint bool) (*supersimple.Book, error) {
-	ctx, collection := db.GoMongo("simple", "books")
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		log.Fatal("Unable to create client in updateBook():", err)
+	}
+
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			log.Fatal("Unable to disconnect client from updateBook():", err)
+		}
+	}()
+
+	collection := *client.Database("simple").Collection("books")
 
 	filter := bson.D{
 		{"_id", id},
@@ -188,14 +254,25 @@ func (r *mutationResolver) UpdateBook(ctx context.Context, id primitive.ObjectID
 
 	var b supersimple.Book
 
-	err := collection.FindOneAndUpdate(ctx, filter, update, opts).Decode(&b)
+	err = collection.FindOneAndUpdate(context.TODO(), filter, update, opts).Decode(&b)
 	if err != nil {
 		log.Println("Error:", err)
 	}
 	return &b, nil
 }
 func (r *mutationResolver) DeleteBook(ctx context.Context, id primitive.ObjectID) (*supersimple.Book, error) {
-	ctx, collection := db.GoMongo("simple", "books")
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		log.Fatal("Unable to create client in deleteBook():", err)
+	}
+
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			log.Fatal("Unable to disconnect client from deleteBook():", err)
+		}
+	}()
+
+	collection := *client.Database("simple").Collection("books")
 
 	filter := bson.D{
 		{"_id", id},
@@ -203,7 +280,7 @@ func (r *mutationResolver) DeleteBook(ctx context.Context, id primitive.ObjectID
 
 	var b supersimple.Book
 
-	err := collection.FindOneAndDelete(ctx, filter).Decode(&b)
+	err = collection.FindOneAndDelete(context.TODO(), filter).Decode(&b)
 	if err != nil {
 		log.Println("Error:", err)
 	}
@@ -220,7 +297,18 @@ func (r *queryResolver) Users(ctx context.Context) ([]*supersimple.User, error) 
 }
 
 func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, first *string, last *string, dateOfBirth *time.Time, dateOfDeath *time.Time) (*supersimple.Author, error) {
-	ctx, collection := db.GoMongo("simple", "authors")
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		log.Fatal("Unable to create client in oneAuthor():", err)
+	}
+
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			log.Fatal("Unable to disconnect client from oneAuthor():", err)
+		}
+	}()
+
+	collection := *client.Database("simple").Collection("authors")
 
 	var filter bson.D
 
@@ -271,14 +359,14 @@ func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, f
 	opts.SetMaxAwaitTime(time.Second * 3)
 	opts.SetMaxTime(time.Second * 3)
 
-	cur, err := collection.Aggregate(ctx, pipeline, opts)
+	cur, err := collection.Aggregate(context.TODO(), pipeline, opts)
 	if err != nil {
 		log.Println("Error:", err)
 	}
 
-	defer cur.Close(ctx)
+	defer cur.Close(context.TODO())
 
-	for cur.Next(ctx) {
+	for cur.Next(context.TODO()) {
 		if err := cur.Decode(&a); err != nil {
 			log.Fatal(err)
 		}
@@ -286,9 +374,19 @@ func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, f
 
 	return &a, nil
 }
-
 func (r *queryResolver) OneBook(ctx context.Context, id *primitive.ObjectID, title *string, genre *string, description *string, publisher *string, outOfPrint *bool) (*supersimple.Book, error) {
-	ctx, collection := db.GoMongo("simple", "books")
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		log.Fatal("Unable to create client in oneBook():", err)
+	}
+
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			log.Fatal("Unable to disconnect client from oneBook():", err)
+		}
+	}()
+
+	collection := *client.Database("simple").Collection("books")
 
 	var filter bson.D
 
@@ -342,14 +440,14 @@ func (r *queryResolver) OneBook(ctx context.Context, id *primitive.ObjectID, tit
 	opts.SetMaxAwaitTime(time.Second * 3)
 	opts.SetMaxTime(time.Second * 3)
 
-	cur, err := collection.Aggregate(ctx, pipeline, opts)
+	cur, err := collection.Aggregate(context.TODO(), pipeline, opts)
 	if err != nil {
 		log.Println("Error:", err)
 	}
 
-	defer cur.Close(ctx)
+	defer cur.Close(context.TODO())
 
-	for cur.Next(ctx) {
+	for cur.Next(context.TODO()) {
 		if err := cur.Decode(&b); err != nil {
 			log.Fatal(err)
 		}
@@ -358,18 +456,29 @@ func (r *queryResolver) OneBook(ctx context.Context, id *primitive.ObjectID, tit
 	return &b, nil
 }
 func (r *queryResolver) Authors(ctx context.Context) ([]*supersimple.Author, error) {
-	ctx, collection := db.GoMongo("simple", "authors")
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		log.Fatal("Unable to create client in authors():", err)
+	}
+
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			log.Fatal("Unable to disconnect client from authors():", err)
+		}
+	}()
+
+	collection := *client.Database("simple").Collection("authors")
 
 	var results []*supersimple.Author
 
-	cur, err := collection.Find(ctx, bson.D{})
+	cur, err := collection.Find(context.TODO(), bson.D{})
 	if err != nil {
 		log.Println(err)
 	}
 
-	defer cur.Close(ctx)
+	defer cur.Close(context.TODO())
 
-	for cur.Next(ctx) {
+	for cur.Next(context.TODO()) {
 		var elem supersimple.Author
 		err := cur.Decode(&elem)
 		if err != nil {
@@ -385,18 +494,29 @@ func (r *queryResolver) Authors(ctx context.Context) ([]*supersimple.Author, err
 	return results, nil
 }
 func (r *queryResolver) Books(ctx context.Context) ([]*supersimple.Book, error) {
-	ctx, collection := db.GoMongo("simple", "book")
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		log.Fatal("Unable to create client in books():", err)
+	}
+
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			log.Fatal("Unable to disconnect client from books():", err)
+		}
+	}()
+
+	collection := *client.Database("simple").Collection("books")
 
 	var results []*supersimple.Book
 
-	cur, err := collection.Find(ctx, bson.D{})
+	cur, err := collection.Find(context.TODO(), bson.D{})
 	if err != nil {
 		log.Println(err)
 	}
 
-	defer cur.Close(ctx)
+	defer cur.Close(context.TODO())
 
-	for cur.Next(ctx) {
+	for cur.Next(context.TODO()) {
 		var elem supersimple.Book
 		err := cur.Decode(&elem)
 		if err != nil {
@@ -411,3 +531,6 @@ func (r *queryResolver) Books(ctx context.Context) ([]*supersimple.Book, error) 
 
 	return results, nil
 }
+
+// 5dd7cc447cde2a00fd8ecf4e straub
+// 5dd7ccc37cde2a00fd8ecf4f king
