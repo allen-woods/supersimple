@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/allen-woods/supersimple/auth"
-	db "github.com/allen-woods/supersimple/database"
+	mdb "github.com/allen-woods/supersimple/database"
 	supersimple "github.com/allen-woods/supersimple/models"
 	"go.mongodb.org/mongo-driver/bson"
 	primitive "go.mongodb.org/mongo-driver/bson/primitive"
@@ -28,9 +28,15 @@ func (r *Resolver) Query() QueryResolver {
 type mutationResolver struct{ *Resolver }
 
 func (r *mutationResolver) SignUp(ctx context.Context, input *supersimple.NewUser) (*supersimple.User, error) {
-	ctx, collection := db.GoMongo("simple", "users")
+	client, err := mdb.GetClient()
+	if err != nil {
+		return nil, err
+	}
 
-	err := db.RequireUniqueEmailFields(ctx, collection)
+	db := *client.Database("simple")
+	collection := *db.Collection("users")
+
+	err = mdb.RequireUniqueEmailFields(&collection)
 	if err != nil {
 		log.Fatal("Failed to require unique email fields:", err)
 	}
@@ -46,6 +52,11 @@ func (r *mutationResolver) SignUp(ctx context.Context, input *supersimple.NewUse
 		Name:     input.Name,
 		UserName: input.UserName,
 		Password: securePassword,
+	}
+
+	ctx, err = mdb.GetContext()
+	if err != nil {
+		log.Fatalln("Failed to get context from database package:", err)
 	}
 
 	res, err := collection.InsertOne(ctx, *u)
@@ -73,7 +84,13 @@ func (r *mutationResolver) DeleteAccount(ctx context.Context, id primitive.Objec
 }
 
 func (r *mutationResolver) CreateAuthor(ctx context.Context, input supersimple.NewAuthor) (*supersimple.Author, error) {
-	ctx, collection := db.GoMongo("simple", "authors")
+	client, err := mdb.GetClient()
+	if err != nil {
+		return nil, err
+	}
+
+	db := *client.Database("simple")
+	collection := *db.Collection("authors")
 
 	a := &supersimple.Author{
 		First:       input.First,
