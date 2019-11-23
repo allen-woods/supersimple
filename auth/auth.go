@@ -19,6 +19,10 @@ var authenticatedUserID struct {
 	id string
 }
 
+var deleteSessionAndCookie struct {
+	flag bool
+}
+
 var validateCookie struct {
 	hash []byte
 	key  []byte
@@ -97,6 +101,14 @@ func HashAndSalt(pw string) (string, error) {
 	return string(hash), nil
 }
 
+func CheckPassword(hashedPassword []byte, rawPassword []byte) (bool, error) {
+	err := bcrypt.CompareHashAndPassword(hashedPassword, rawPassword)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func ReadSessionIDFromCookie(w http.ResponseWriter, r *http.Request) (string, error) {
 	cookie, err := r.Cookie("sid")
 	if err != nil {
@@ -166,8 +178,21 @@ func Middleware() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			SetEnvironmentVariables()
-			maxAge := 24 * 60 * 60
-			expiration := time.Now().Add(24 * time.Hour)
+
+			var maxAge int
+			var expiration time.Time
+
+			// Check to see if we should erase everything.
+			// NOTE: We will need to check again so we can remove
+			// the authenticated user.
+			del := deleteSessionAndCookie.flag
+			if del == true {
+				maxAge = 0
+				expiration = time.Now().AddDate(0, 0, -1)
+			} else {
+				maxAge = 24 * 60 * 60
+				expiration = time.Now().Add(24 * time.Hour)
+			}
 
 			// Check to see if a user was authenticated
 			// in our signUp or logIn mutations.
@@ -263,19 +288,41 @@ func Middleware() func(next http.Handler) http.Handler {
 				}
 
 				persistedID, err := ReadFromRedis(sessionID)
-				if err != nil {
+				if err != nil && del != true {
 					log.Fatalln("Unable to read userID from Redis:", err)
 				}
 
-				// Update the lifespan of the session cookie to 24 hours from now, in seconds.
+				// Update the lifespan of the session cookie to up to
+				// 24 hours from now, in seconds.
+				cookie.HttpOnly = true
+
+				if del == true {
+					cookie.Value = ""
+				}
+
+				cookie.Path = "/"
 				cookie.MaxAge = maxAge
 				cookie.Expires = expiration
 
 				// Set the cookie on response to the end user.
 				http.SetCookie(w, cookie)
 
-				// place the extracted userID into a value of type that context can access
-				authenticatedUserID.id = persistedID
+				if del == true {
+					// Conditionally remove the User's id if we are
+					// deleting during logOutUser mutation.
+					authenticatedUserID.id = ""
+
+					// We have to reset the flag or subsequent logins
+					// will fail.
+					deleteSessionAndCookie.flag = false
+
+				} else {
+
+					// Otherwise, place the extracted userID into a value
+					// of type that context can access.
+					authenticatedUserID.id = persistedID
+
+				}
 
 				// Update context and serve next handler.
 				ctx := context.WithValue(r.Context(), userIDCtxKey, authenticatedUserID.id)
@@ -288,6 +335,10 @@ func Middleware() func(next http.Handler) http.Handler {
 
 func InsertUserID(userID string) {
 	authenticatedUserID.id = userID
+}
+
+func SetLogOutFlag(value bool) {
+	deleteSessionAndCookie.flag = value
 }
 
 func ForContext(ctx context.Context) string {

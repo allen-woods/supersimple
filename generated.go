@@ -67,11 +67,11 @@ type ComplexityRoot struct {
 	Mutation struct {
 		CreateAuthor  func(childComplexity int, input supersimple.NewAuthor) int
 		CreateBook    func(childComplexity int, input supersimple.NewBook) int
-		DeleteAccount func(childComplexity int, id primitive.ObjectID) int
+		DeleteAccount func(childComplexity int, id primitive.ObjectID, confirmDelete bool) int
 		DeleteAuthor  func(childComplexity int, id primitive.ObjectID) int
 		DeleteBook    func(childComplexity int, id primitive.ObjectID) int
-		LogInUser     func(childComplexity int, input *supersimple.NewUser) int
-		LogOutUser    func(childComplexity int, id primitive.ObjectID) int
+		LogInUser     func(childComplexity int, email string, password string) int
+		LogOutUser    func(childComplexity int) int
 		SignUp        func(childComplexity int, input *supersimple.NewUser) int
 		UpdateAuthor  func(childComplexity int, id primitive.ObjectID, dateOfDeath time.Time) int
 		UpdateBook    func(childComplexity int, id primitive.ObjectID, outOfPrint bool) int
@@ -97,9 +97,9 @@ type ComplexityRoot struct {
 
 type MutationResolver interface {
 	SignUp(ctx context.Context, input *supersimple.NewUser) (*supersimple.User, error)
-	LogInUser(ctx context.Context, input *supersimple.NewUser) (*supersimple.User, error)
-	LogOutUser(ctx context.Context, id primitive.ObjectID) (bool, error)
-	DeleteAccount(ctx context.Context, id primitive.ObjectID) (bool, error)
+	LogInUser(ctx context.Context, email string, password string) (*supersimple.User, error)
+	LogOutUser(ctx context.Context) (bool, error)
+	DeleteAccount(ctx context.Context, id primitive.ObjectID, confirmDelete bool) (bool, error)
 	CreateAuthor(ctx context.Context, input supersimple.NewAuthor) (*supersimple.Author, error)
 	UpdateAuthor(ctx context.Context, id primitive.ObjectID, dateOfDeath time.Time) (*supersimple.Author, error)
 	DeleteAuthor(ctx context.Context, id primitive.ObjectID) (*supersimple.Author, error)
@@ -256,7 +256,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.DeleteAccount(childComplexity, args["id"].(primitive.ObjectID)), true
+		return e.complexity.Mutation.DeleteAccount(childComplexity, args["id"].(primitive.ObjectID), args["confirmDelete"].(bool)), true
 
 	case "Mutation.deleteAuthor":
 		if e.complexity.Mutation.DeleteAuthor == nil {
@@ -292,19 +292,14 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.LogInUser(childComplexity, args["input"].(*supersimple.NewUser)), true
+		return e.complexity.Mutation.LogInUser(childComplexity, args["email"].(string), args["password"].(string)), true
 
 	case "Mutation.logOutUser":
 		if e.complexity.Mutation.LogOutUser == nil {
 			break
 		}
 
-		args, err := ec.field_Mutation_logOutUser_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.LogOutUser(childComplexity, args["id"].(primitive.ObjectID)), true
+		return e.complexity.Mutation.LogOutUser(childComplexity), true
 
 	case "Mutation.signUp":
 		if e.complexity.Mutation.SignUp == nil {
@@ -571,10 +566,10 @@ type Mutation {
   # "Create" User
   signUp(input: NewUser): User
   # "Update" User
-  logInUser(input: NewUser): User
-  logOutUser(id: ID!): Boolean!
+  logInUser(email: String!, password: String!): User
+  logOutUser: Boolean!
   # "Delete" User
-  deleteAccount(id: ID!): Boolean!
+  deleteAccount(id: ID!, confirmDelete: Boolean!): Boolean!
 
   createAuthor(input: NewAuthor!): Author!
   updateAuthor(id: ID!, dateOfDeath: Time!): Author!
@@ -630,6 +625,14 @@ func (ec *executionContext) field_Mutation_deleteAccount_args(ctx context.Contex
 		}
 	}
 	args["id"] = arg0
+	var arg1 bool
+	if tmp, ok := rawArgs["confirmDelete"]; ok {
+		arg1, err = ec.unmarshalNBoolean2bool(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["confirmDelete"] = arg1
 	return args, nil
 }
 
@@ -664,28 +667,22 @@ func (ec *executionContext) field_Mutation_deleteBook_args(ctx context.Context, 
 func (ec *executionContext) field_Mutation_logInUser_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 *supersimple.NewUser
-	if tmp, ok := rawArgs["input"]; ok {
-		arg0, err = ec.unmarshalONewUser2ᚖgithubᚗcomᚋallenᚑwoodsᚋsupersimpleᚋmodelsᚐNewUser(ctx, tmp)
+	var arg0 string
+	if tmp, ok := rawArgs["email"]; ok {
+		arg0, err = ec.unmarshalNString2string(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["input"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_logOutUser_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 primitive.ObjectID
-	if tmp, ok := rawArgs["id"]; ok {
-		arg0, err = ec.unmarshalNID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, tmp)
+	args["email"] = arg0
+	var arg1 string
+	if tmp, ok := rawArgs["password"]; ok {
+		arg1, err = ec.unmarshalNString2string(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["id"] = arg0
+	args["password"] = arg1
 	return args, nil
 }
 
@@ -1442,7 +1439,7 @@ func (ec *executionContext) _Mutation_logInUser(ctx context.Context, field graph
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().LogInUser(rctx, args["input"].(*supersimple.NewUser))
+		return ec.resolvers.Mutation().LogInUser(rctx, args["email"].(string), args["password"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1473,17 +1470,10 @@ func (ec *executionContext) _Mutation_logOutUser(ctx context.Context, field grap
 		IsMethod: true,
 	}
 	ctx = graphql.WithResolverContext(ctx, rctx)
-	rawArgs := field.ArgumentMap(ec.Variables)
-	args, err := ec.field_Mutation_logOutUser_args(ctx, rawArgs)
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	rctx.Args = args
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().LogOutUser(rctx, args["id"].(primitive.ObjectID))
+		return ec.resolvers.Mutation().LogOutUser(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1527,7 +1517,7 @@ func (ec *executionContext) _Mutation_deleteAccount(ctx context.Context, field g
 	ctx = ec.Tracer.StartFieldResolverExecution(ctx, rctx)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().DeleteAccount(rctx, args["id"].(primitive.ObjectID))
+		return ec.resolvers.Mutation().DeleteAccount(rctx, args["id"].(primitive.ObjectID), args["confirmDelete"].(bool))
 	})
 	if err != nil {
 		ec.Error(ctx, err)

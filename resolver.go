@@ -2,7 +2,7 @@ package supersimple
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log"
 	"time"
 
@@ -82,16 +82,122 @@ func (r *mutationResolver) SignUp(ctx context.Context, input *supersimple.NewUse
 	return u, nil
 }
 
-func (r *mutationResolver) LogInUser(ctx context.Context, input *supersimple.NewUser) (*supersimple.User, error) {
-	panic("not implemented")
+func (r *mutationResolver) LogInUser(ctx context.Context, email string, password string) (*supersimple.User, error) {
+	// Look to see if the user is already logged in
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser != "" {
+		err := errors.New("User is already logged in.")
+		return nil, err
+	}
+
+	// Connect the client.
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		log.Fatal("Unable to create client in logInUser():", err)
+	}
+
+	// Defer disconnection of the client.
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			log.Fatal("Unable to disconnect client from logInUser():", err)
+		}
+	}()
+
+	// Point to the "users" collection.
+	collection := *client.Database("simple").Collection("users")
+
+	// Search using the email, which is required to be unique.
+	filter := bson.D{
+		{"email", email},
+	}
+
+	// Set the options for the FindOne operation.
+	opts := options.FindOne()
+
+	// Create a User struct where the data will be decoded.
+	var u supersimple.User
+
+	// Search for the User.
+	err = collection.FindOne(context.TODO(), filter, opts).Decode(&u)
+	if err != nil {
+		log.Println("Error:", err)
+	}
+
+	// Confirm the password matches.
+	ok, err := auth.CheckPassword([]byte(u.Password), []byte(password))
+	if !ok {
+		err := errors.New("Incorrect email or password.")
+		return nil, err
+	}
+
+	// Insert the id of the User to be consumed by
+	// authentication middleware.
+	auth.InsertUserID(u.ID.Hex())
+
+	// Return a pointer to the User and no error.
+	return &u, nil
 }
-func (r *mutationResolver) LogOutUser(ctx context.Context, id primitive.ObjectID) (bool, error) {
-	userID := auth.ForContext(ctx)
-	fmt.Println("This would have logged out the user with the id:", userID)
+func (r *mutationResolver) LogOutUser(ctx context.Context) (bool, error) {
+	// Look to see if the user is already logged out.
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser == "" {
+		err := errors.New("User is already logged out.")
+		return false, err
+	}
+
+	// Tell the authentication middleware to delete the
+	// session from Redis and to delete the "sid" cookie.
+	auth.SetLogOutFlag(true)
+
 	return true, nil
 }
-func (r *mutationResolver) DeleteAccount(ctx context.Context, id primitive.ObjectID) (bool, error) {
-	panic("not implemented")
+func (r *mutationResolver) DeleteAccount(ctx context.Context, id primitive.ObjectID, confirmDelete bool) (bool, error) {
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser == "" {
+		err := errors.New("User is already logged out.")
+		return false, err
+	}
+
+	authenticatedUser, err := primitive.ObjectIDFromHex(loggedInUser)
+
+	if err != nil {
+		err := errors.New("Unable to generate authenticatedUser in deleteAccount()")
+		return false, err
+	}
+
+	// Check to make sure the information is fully confirmed.
+	if authenticatedUser == id && confirmDelete == true {
+		client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+		if err != nil {
+			log.Fatal("Unable to create client in deleteAccount():", err)
+		}
+
+		defer func() {
+			if err = client.Disconnect(context.TODO()); err != nil {
+				log.Fatal("Unable to disconnect client from deleteAccount():", err)
+			}
+		}()
+
+		collection := *client.Database("simple").Collection("users")
+
+		filter := bson.D{
+			{"_id", id},
+		}
+
+		var u supersimple.User
+
+		err = collection.FindOneAndDelete(context.TODO(), filter).Decode(&u)
+		if err != nil {
+			err := errors.New("Unable to delete User in deleteAccount()")
+			return false, err
+		}
+
+		auth.SetLogOutFlag(true)
+
+		return true, nil
+	}
+	err = errors.New("Authentication or confirmation failure.")
+	return false, err
 }
 
 func (r *mutationResolver) CreateAuthor(ctx context.Context, input supersimple.NewAuthor) (*supersimple.Author, error) {
@@ -531,6 +637,3 @@ func (r *queryResolver) Books(ctx context.Context) ([]*supersimple.Book, error) 
 
 	return results, nil
 }
-
-// 5dd7cc447cde2a00fd8ecf4e straub
-// 5dd7ccc37cde2a00fd8ecf4f king

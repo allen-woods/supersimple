@@ -78,10 +78,10 @@ type Mutation {
   # "Create" User
   signUp(input: NewUser): User
   # "Update" User
-  logInUser(input: NewUser): User
-  logOutUser(id: ID!): Boolean!
+  logInUser(email: String!, password: String!): User
+  logOutUser: Boolean!
   # "Delete" User
-  deleteAccount(id: ID!): Boolean!
+  deleteAccount(id: ID!, confirmDelete: Boolean!): Boolean!
 
   createAuthor(input: NewAuthor!): Author!
   updateAuthor(id: ID!, dateOfDeath: Time!): Author!
