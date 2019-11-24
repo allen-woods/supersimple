@@ -396,12 +396,171 @@ func (r *mutationResolver) DeleteBook(ctx context.Context, id primitive.ObjectID
 type queryResolver struct{ *Resolver }
 
 func (r *queryResolver) Me(ctx context.Context) (*supersimple.User, error) {
-	panic("not implemented")
+	// Look to see if the user is already logged out.
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser == "" {
+		err := errors.New("User is logged out.")
+		return nil, err
+	}
+
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		log.Fatal("Unable to create client in deleteBook():", err)
+	}
+
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			log.Fatal("Unable to disconnect client from deleteBook():", err)
+		}
+	}()
+
+	// Point to the "users" collection.
+	collection := *client.Database("simple").Collection("users")
+
+	// Filter based on "_id".
+	filter := bson.D{
+		{"_id", loggedInUser},
+	}
+
+	// Create a User struct to decode bson into.
+	var u supersimple.User
+
+	// Create an aggregation pipeline so we can prevent
+	// projection of the password field.
+	pipeline := []bson.D{
+		bson.D{
+			{
+				"$match", filter,
+			},
+		},
+		bson.D{
+			{
+				"$project", bson.D{
+					{"password", 0},
+				},
+			},
+		},
+	}
+
+	// Declare options for the pipeline.
+	opts := options.Aggregate()
+	opts.SetMaxAwaitTime(time.Second * 3)
+	opts.SetMaxTime(time.Second * 3)
+
+	// Return the cursor of our matching User, if any.
+	cur, err := collection.Aggregate(context.TODO(), pipeline, opts)
+	if err != nil {
+		log.Println("Error:", err)
+	}
+
+	// Defer the closure of the cursor.
+	defer cur.Close(context.TODO())
+
+	// Iterate through the cursor so long as there is a
+	// next element.
+	for cur.Next(context.TODO()) {
+		if err := cur.Decode(&u); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	// Return the User and no error.
+	return &u, nil
 }
 func (r *queryResolver) Users(ctx context.Context) ([]*supersimple.User, error) {
-	panic("not implemented")
-}
+	// Look to see if the user is already logged out.
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser == "" {
+		err := errors.New("User is logged out.")
+		return nil, err
+	}
 
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	if err != nil {
+		log.Fatal("Unable to create client in deleteBook():", err)
+	}
+
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			log.Fatal("Unable to disconnect client from deleteBook():", err)
+		}
+	}()
+
+	// Point to the "users" collection.
+	collection := *client.Database("simple").Collection("users")
+
+	// Create a User struct to decode bson into.
+	var results []*supersimple.User
+
+	// Create an aggregation pipeline so we can ignore the
+	// authenticated User and prevent projection of the
+	// password fields.
+
+	/* This pipeline is going to be the hardest part of the entire server to build and will take the longest, possibly days to complete.
+
+	What this pipeline needs:
+
+	- Group by _id
+	- Reject the provided _id of loogedInUser.
+	- Prevent projection of password field.
+	*/
+
+	id, err := primitive.ObjectIDFromHex(loggedInUser)
+	if err != nil {
+		err := errors.New("Unable to format loggedInUser in users().")
+		return nil, err
+	}
+
+	pipeline := []bson.D{
+		bson.D{
+			{"$match", bson.D{
+				{
+					"_id", bson.D{
+						{"$nin", bson.A{id}},
+					},
+				}},
+			},
+		},
+		bson.D{
+			{
+				"$project", bson.D{
+					{"password", 0},
+				},
+			},
+		},
+	}
+
+	// Declare options for the pipeline.
+	opts := options.Aggregate()
+	opts.SetMaxAwaitTime(time.Second * 3)
+	opts.SetMaxTime(time.Second * 3)
+
+	// Return the cursor of our matching User, if any.
+	cur, err := collection.Aggregate(context.TODO(), pipeline, opts)
+	if err != nil {
+		log.Println("Error:", err)
+	}
+
+	// Defer the closure of the cursor.
+	defer cur.Close(context.TODO())
+
+	// Iterate through the cursor so long as there is a
+	// next element.
+	for cur.Next(context.TODO()) {
+		var elem supersimple.User
+		err := cur.Decode(&elem)
+		if err != nil {
+			log.Println(err)
+		}
+		results = append(results, &elem)
+	}
+
+	if err := cur.Err(); err != nil {
+		log.Println(err)
+	}
+
+	return results, nil
+}
 func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, first *string, last *string, dateOfBirth *time.Time, dateOfDeath *time.Time) (*supersimple.Author, error) {
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
