@@ -1,0 +1,12 @@
+{
+  "cSpell.ignoreWords": [
+    "bcrypt",
+    "bson",
+    "gacp",
+    "hget",
+    "hmset",
+    "mongodb",
+    "printf",
+    "uuid"
+  ]
+}
