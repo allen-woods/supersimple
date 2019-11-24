@@ -10,24 +10,30 @@ import (
 	"github.com/allen-woods/supersimple/database"
 	supersimple "github.com/allen-woods/supersimple/models"
 	"go.mongodb.org/mongo-driver/bson"
-	primitive "go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // THIS CODE IS A STARTING POINT ONLY. IT WILL NOT BE UPDATED WITH SCHEMA CHANGES.
 
+// Resolver provides the root type used by our resolvers.
 type Resolver struct{}
 
+// Mutation provides the root for our mutation resolvers.
 func (r *Resolver) Mutation() MutationResolver {
 	return &mutationResolver{r}
 }
+
+// Query provides the root for our query resolvers.
 func (r *Resolver) Query() QueryResolver {
 	return &queryResolver{r}
 }
 
+// mutationResolver provides the root type specific to our mutation resolvers.
 type mutationResolver struct{ *Resolver }
 
+// SignUp provides a mutation for creating a new user.
 func (r *mutationResolver) SignUp(ctx context.Context, input *supersimple.NewUser) (*supersimple.User, error) {
 	// Create a client connected to a generic context.
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
@@ -86,7 +92,7 @@ func (r *mutationResolver) LogInUser(ctx context.Context, email string, password
 	// Look to see if the user is already logged in
 	loggedInUser := auth.ForContext(ctx)
 	if loggedInUser != "" {
-		err := errors.New("User is already logged in.")
+		err := errors.New("User is already logged in")
 		return nil, err
 	}
 
@@ -108,7 +114,7 @@ func (r *mutationResolver) LogInUser(ctx context.Context, email string, password
 
 	// Search using the email, which is required to be unique.
 	filter := bson.D{
-		{"email", email},
+		bson.E{Key: "email", Value: email},
 	}
 
 	// Set the options for the FindOne operation.
@@ -126,7 +132,7 @@ func (r *mutationResolver) LogInUser(ctx context.Context, email string, password
 	// Confirm the password matches.
 	ok, err := auth.CheckPassword([]byte(u.Password), []byte(password))
 	if !ok {
-		err := errors.New("Incorrect email or password.")
+		err := errors.New("Incorrect email or password")
 		return nil, err
 	}
 
@@ -141,7 +147,7 @@ func (r *mutationResolver) LogOutUser(ctx context.Context) (bool, error) {
 	// Look to see if the user is already logged out.
 	loggedInUser := auth.ForContext(ctx)
 	if loggedInUser == "" {
-		err := errors.New("User is already logged out.")
+		err := errors.New("User is already logged out")
 		return false, err
 	}
 
@@ -154,7 +160,7 @@ func (r *mutationResolver) LogOutUser(ctx context.Context) (bool, error) {
 func (r *mutationResolver) DeleteAccount(ctx context.Context, id primitive.ObjectID, confirmDelete bool) (bool, error) {
 	loggedInUser := auth.ForContext(ctx)
 	if loggedInUser == "" {
-		err := errors.New("User is already logged out.")
+		err := errors.New("User is already logged out")
 		return false, err
 	}
 
@@ -181,7 +187,7 @@ func (r *mutationResolver) DeleteAccount(ctx context.Context, id primitive.Objec
 		collection := *client.Database("simple").Collection("users")
 
 		filter := bson.D{
-			{"_id", id},
+			bson.E{Key: "_id", Value: id},
 		}
 
 		var u supersimple.User
@@ -196,11 +202,18 @@ func (r *mutationResolver) DeleteAccount(ctx context.Context, id primitive.Objec
 
 		return true, nil
 	}
-	err = errors.New("Authentication or confirmation failure.")
+	err = errors.New("Authentication or confirmation failure")
 	return false, err
 }
 
 func (r *mutationResolver) CreateAuthor(ctx context.Context, input supersimple.NewAuthor) (*supersimple.Author, error) {
+	// Look to see if the user is already logged out.
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser == "" {
+		err := errors.New("Access denied")
+		return nil, err
+	}
+
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		log.Fatal("Unable to create client in createAuthor():", err)
@@ -232,6 +245,13 @@ func (r *mutationResolver) CreateAuthor(ctx context.Context, input supersimple.N
 	return a, nil
 }
 func (r *mutationResolver) UpdateAuthor(ctx context.Context, id primitive.ObjectID, dateOfDeath time.Time) (*supersimple.Author, error) {
+	// Look to see if the user is already logged out.
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser == "" {
+		err := errors.New("Access denied")
+		return nil, err
+	}
+
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		log.Fatal("Unable to create client in updateAuthor():", err)
@@ -246,13 +266,13 @@ func (r *mutationResolver) UpdateAuthor(ctx context.Context, id primitive.Object
 	collection := *client.Database("simple").Collection("authors")
 
 	filter := bson.D{
-		{"_id", id},
+		bson.E{Key: "_id", Value: id},
 	}
 
 	update := bson.D{
-		{
-			"$set", bson.D{
-				{"dateOfDeath", dateOfDeath},
+		bson.E{
+			Key: "$set", Value: bson.D{
+				bson.E{Key: "dateOfDeath", Value: dateOfDeath},
 			},
 		},
 	}
@@ -270,6 +290,13 @@ func (r *mutationResolver) UpdateAuthor(ctx context.Context, id primitive.Object
 	return &a, nil
 }
 func (r *mutationResolver) DeleteAuthor(ctx context.Context, id primitive.ObjectID) (*supersimple.Author, error) {
+	// Look to see if the user is already logged out.
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser == "" {
+		err := errors.New("Access denied")
+		return nil, err
+	}
+
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		log.Fatal("Unable to create client in deleteAuthor():", err)
@@ -284,7 +311,7 @@ func (r *mutationResolver) DeleteAuthor(ctx context.Context, id primitive.Object
 	collection := *client.Database("simple").Collection("authors")
 
 	filter := bson.D{
-		{"_id", id},
+		bson.E{Key: "_id", Value: id},
 	}
 
 	var a supersimple.Author
@@ -297,6 +324,13 @@ func (r *mutationResolver) DeleteAuthor(ctx context.Context, id primitive.Object
 	return &a, nil
 }
 func (r *mutationResolver) CreateBook(ctx context.Context, input supersimple.NewBook) (*supersimple.Book, error) {
+	// Look to see if the user is already logged out.
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser == "" {
+		err := errors.New("Access denied")
+		return nil, err
+	}
+
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		log.Fatal("Unable to create client in createBook():", err)
@@ -330,6 +364,13 @@ func (r *mutationResolver) CreateBook(ctx context.Context, input supersimple.New
 	return b, nil
 }
 func (r *mutationResolver) UpdateBook(ctx context.Context, id primitive.ObjectID, outOfPrint bool) (*supersimple.Book, error) {
+	// Look to see if the user is already logged out.
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser == "" {
+		err := errors.New("Access denied")
+		return nil, err
+	}
+
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		log.Fatal("Unable to create client in updateBook():", err)
@@ -344,13 +385,13 @@ func (r *mutationResolver) UpdateBook(ctx context.Context, id primitive.ObjectID
 	collection := *client.Database("simple").Collection("books")
 
 	filter := bson.D{
-		{"_id", id},
+		bson.E{Key: "_id", Value: id},
 	}
 
 	update := bson.D{
-		{
-			"$set", bson.D{
-				{"outOfPrint", outOfPrint},
+		bson.E{
+			Key: "$set", Value: bson.D{
+				bson.E{Key: "outOfPrint", Value: outOfPrint},
 			},
 		},
 	}
@@ -367,6 +408,13 @@ func (r *mutationResolver) UpdateBook(ctx context.Context, id primitive.ObjectID
 	return &b, nil
 }
 func (r *mutationResolver) DeleteBook(ctx context.Context, id primitive.ObjectID) (*supersimple.Book, error) {
+	// Look to see if the user is already logged out.
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser == "" {
+		err := errors.New("Access denied")
+		return nil, err
+	}
+
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		log.Fatal("Unable to create client in deleteBook():", err)
@@ -381,7 +429,7 @@ func (r *mutationResolver) DeleteBook(ctx context.Context, id primitive.ObjectID
 	collection := *client.Database("simple").Collection("books")
 
 	filter := bson.D{
-		{"_id", id},
+		bson.E{Key: "_id", Value: id},
 	}
 
 	var b supersimple.Book
@@ -399,7 +447,7 @@ func (r *queryResolver) Me(ctx context.Context) (*supersimple.User, error) {
 	// Look to see if the user is already logged out.
 	loggedInUser := auth.ForContext(ctx)
 	if loggedInUser == "" {
-		err := errors.New("User is logged out.")
+		err := errors.New("User is logged out")
 		return nil, err
 	}
 
@@ -417,26 +465,32 @@ func (r *queryResolver) Me(ctx context.Context) (*supersimple.User, error) {
 	// Point to the "users" collection.
 	collection := *client.Database("simple").Collection("users")
 
-	// Filter based on "_id".
-	filter := bson.D{
-		{"_id", loggedInUser},
-	}
-
 	// Create a User struct to decode bson into.
 	var u supersimple.User
+
+	// Format our loggedInUser as type primitive.ObjectID.
+	id, err := primitive.ObjectIDFromHex(loggedInUser)
+	if err != nil {
+		err := errors.New("Unable to format loggedInUser in me()")
+		return nil, err
+	}
 
 	// Create an aggregation pipeline so we can prevent
 	// projection of the password field.
 	pipeline := []bson.D{
 		bson.D{
-			{
-				"$match", filter,
+			bson.E{Key: "$match", Value: bson.D{
+				bson.E{
+					Key: "_id", Value: bson.D{
+						bson.E{Key: "$in", Value: bson.A{id}},
+					},
+				}},
 			},
 		},
 		bson.D{
-			{
-				"$project", bson.D{
-					{"password", 0},
+			bson.E{
+				Key: "$project", Value: bson.D{
+					bson.E{Key: "password", Value: 0},
 				},
 			},
 		},
@@ -471,7 +525,7 @@ func (r *queryResolver) Users(ctx context.Context) ([]*supersimple.User, error) 
 	// Look to see if the user is already logged out.
 	loggedInUser := auth.ForContext(ctx)
 	if loggedInUser == "" {
-		err := errors.New("User is logged out.")
+		err := errors.New("Access denied")
 		return nil, err
 	}
 
@@ -492,39 +546,30 @@ func (r *queryResolver) Users(ctx context.Context) ([]*supersimple.User, error) 
 	// Create a User struct to decode bson into.
 	var results []*supersimple.User
 
-	// Create an aggregation pipeline so we can ignore the
-	// authenticated User and prevent projection of the
-	// password fields.
-
-	/* This pipeline is going to be the hardest part of the entire server to build and will take the longest, possibly days to complete.
-
-	What this pipeline needs:
-
-	- Group by _id
-	- Reject the provided _id of loogedInUser.
-	- Prevent projection of password field.
-	*/
-
+	// Format our loggedInUser as type primitive.ObjectID.
 	id, err := primitive.ObjectIDFromHex(loggedInUser)
 	if err != nil {
-		err := errors.New("Unable to format loggedInUser in users().")
+		err := errors.New("Unable to format loggedInUser in users()")
 		return nil, err
 	}
 
+	// Create an aggregation pipeline so we can ignore the
+	// authenticated User and prevent projection of the
+	// password fields.
 	pipeline := []bson.D{
 		bson.D{
-			{"$match", bson.D{
-				{
-					"_id", bson.D{
-						{"$nin", bson.A{id}},
+			bson.E{Key: "$match", Value: bson.D{
+				bson.E{
+					Key: "_id", Value: bson.D{
+						bson.E{Key: "$nin", Value: bson.A{id}},
 					},
 				}},
 			},
 		},
 		bson.D{
-			{
-				"$project", bson.D{
-					{"password", 0},
+			bson.E{
+				Key: "$project", Value: bson.D{
+					bson.E{Key: "password", Value: 0},
 				},
 			},
 		},
@@ -562,6 +607,13 @@ func (r *queryResolver) Users(ctx context.Context) ([]*supersimple.User, error) 
 	return results, nil
 }
 func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, first *string, last *string, dateOfBirth *time.Time, dateOfDeath *time.Time) (*supersimple.Author, error) {
+	// Look to see if the user is already logged out.
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser == "" {
+		err := errors.New("Access denied")
+		return nil, err
+	}
+
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		log.Fatal("Unable to create client in oneAuthor():", err)
@@ -578,43 +630,43 @@ func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, f
 	var filter bson.D
 
 	if id != nil {
-		filter = append(filter, bson.E{"_id", id})
+		filter = append(filter, bson.E{Key: "_id", Value: id})
 	}
 	if first != nil {
-		filter = append(filter, bson.E{"first", first})
+		filter = append(filter, bson.E{Key: "first", Value: first})
 	}
 	if last != nil {
-		filter = append(filter, bson.E{"last", last})
+		filter = append(filter, bson.E{Key: "last", Value: last})
 	}
 	if dateOfBirth != nil {
-		filter = append(filter, bson.E{"dateOfBirth", dateOfBirth})
+		filter = append(filter, bson.E{Key: "dateOfBirth", Value: dateOfBirth})
 	}
 	if dateOfDeath != nil {
-		filter = append(filter, bson.E{"dateOfDeath", dateOfDeath})
+		filter = append(filter, bson.E{Key: "dateOfDeath", Value: dateOfDeath})
 	}
 
 	var a supersimple.Author
 
 	pipeline := []bson.D{
 		bson.D{
-			{
-				"$match", filter,
+			bson.E{
+				Key: "$match", Value: filter,
 			},
 		},
 		bson.D{
-			{
-				"$lookup", bson.D{
-					{"from", "books"},
-					{"localField", "_id"},
-					{"foreignField", "author_id"},
-					{"as", "books"},
+			bson.E{
+				Key: "$lookup", Value: bson.D{
+					bson.E{Key: "from", Value: "books"},
+					bson.E{Key: "localField", Value: "_id"},
+					bson.E{Key: "foreignField", Value: "author_id"},
+					bson.E{Key: "as", Value: "books"},
 				},
 			},
 		},
 		bson.D{
-			{
-				"$project", bson.D{
-					{"books.authors", 0},
+			bson.E{
+				Key: "$project", Value: bson.D{
+					bson.E{Key: "books.authors", Value: 0},
 				},
 			},
 		},
@@ -640,6 +692,13 @@ func (r *queryResolver) OneAuthor(ctx context.Context, id *primitive.ObjectID, f
 	return &a, nil
 }
 func (r *queryResolver) OneBook(ctx context.Context, id *primitive.ObjectID, title *string, genre *string, description *string, publisher *string, outOfPrint *bool) (*supersimple.Book, error) {
+	// Look to see if the user is already logged out.
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser == "" {
+		err := errors.New("Access denied")
+		return nil, err
+	}
+
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		log.Fatal("Unable to create client in oneBook():", err)
@@ -656,46 +715,46 @@ func (r *queryResolver) OneBook(ctx context.Context, id *primitive.ObjectID, tit
 	var filter bson.D
 
 	if id != nil {
-		filter = append(filter, bson.E{"_id", id})
+		filter = append(filter, bson.E{Key: "_id", Value: id})
 	}
 	if title != nil {
-		filter = append(filter, bson.E{"title", title})
+		filter = append(filter, bson.E{Key: "title", Value: title})
 	}
 	if genre != nil {
-		filter = append(filter, bson.E{"genre", genre})
+		filter = append(filter, bson.E{Key: "genre", Value: genre})
 	}
 	if description != nil {
-		filter = append(filter, bson.E{"description", description})
+		filter = append(filter, bson.E{Key: "description", Value: description})
 	}
 	if publisher != nil {
-		filter = append(filter, bson.E{"publisher", publisher})
+		filter = append(filter, bson.E{Key: "publisher", Value: publisher})
 	}
 	if outOfPrint != nil {
-		filter = append(filter, bson.E{"outOfPrint", outOfPrint})
+		filter = append(filter, bson.E{Key: "outOfPrint", Value: outOfPrint})
 	}
 
 	var b supersimple.Book
 
 	pipeline := []bson.D{
 		bson.D{
-			{
-				"$match", filter,
+			bson.E{
+				Key: "$match", Value: filter,
 			},
 		},
 		bson.D{
-			{
-				"$lookup", bson.D{
-					{"from", "authors"},
-					{"localField", "author_id"},
-					{"foreignField", "_id"},
-					{"as", "authors"},
+			bson.E{
+				Key: "$lookup", Value: bson.D{
+					bson.E{Key: "from", Value: "authors"},
+					bson.E{Key: "localField", Value: "author_id"},
+					bson.E{Key: "foreignField", Value: "_id"},
+					bson.E{Key: "as", Value: "authors"},
 				},
 			},
 		},
 		bson.D{
-			{
-				"$project", bson.D{
-					{"authors.books", 0},
+			bson.E{
+				Key: "$project", Value: bson.D{
+					bson.E{Key: "authors.books", Value: 0},
 				},
 			},
 		},
@@ -721,6 +780,13 @@ func (r *queryResolver) OneBook(ctx context.Context, id *primitive.ObjectID, tit
 	return &b, nil
 }
 func (r *queryResolver) Authors(ctx context.Context) ([]*supersimple.Author, error) {
+	// Look to see if the user is already logged out.
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser == "" {
+		err := errors.New("Access denied")
+		return nil, err
+	}
+
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		log.Fatal("Unable to create client in authors():", err)
@@ -759,6 +825,13 @@ func (r *queryResolver) Authors(ctx context.Context) ([]*supersimple.Author, err
 	return results, nil
 }
 func (r *queryResolver) Books(ctx context.Context) ([]*supersimple.Book, error) {
+	// Look to see if the user is already logged out.
+	loggedInUser := auth.ForContext(ctx)
+	if loggedInUser == "" {
+		err := errors.New("Access denied")
+		return nil, err
+	}
+
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		log.Fatal("Unable to create client in books():", err)
