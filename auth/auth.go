@@ -59,6 +59,83 @@ func GenerateRandomString(s int) (string, error) {
 
 /* End Source 1 */
 
+func RollHashesAndKeyes() error {
+	var hf *os.File
+	hfName := "./hash"
+
+	_, err := os.Stat(hfName)
+	if os.IsNotExist(err) {
+		hf, err = os.Create(hfName)
+		if err != nil {
+			return err
+		}
+
+		err = hf.Chmod(0600)
+		if err != nil {
+			return err
+		}
+
+		err = hf.Chown(os.Getuid(), os.Getgid())
+		if err != nil {
+			return err
+		}
+
+		err = os.Chtimes(hfName, time.Now(), time.Now())
+		if err != nil {
+			return err
+		}
+
+	} else {
+		hf, err = os.Open(hfName)
+		if err != nil {
+			return err
+		}
+	}
+
+	// From here on, hf is a valid pointer to a File.
+
+	defer hf.Close()
+
+	fi, err := hf.Stat()
+	if err != nil {
+		return err
+	}
+
+	// Extract the modification time
+	modTime := fi.ModTime()
+
+	// Check to see if 24 hours have passed
+	if time.Now().Sub(modTime) >= 24*time.Hour {
+
+		// If 24+ hours, we must subtract the first 32 bytes and add 32 at the end.
+		// We then conclude by updating Chtimes
+
+	} else {
+
+		// If less than 24 hours, we update once per hour
+
+	}
+
+	/*
+		1. Create the file if it doesn't exist at all.	(done)
+		2. Set chmod to 0600 (if not already set).	(done)
+		3. Set chown to os.Getuid and os.Getgid (if not already set).	(done)
+
+		In a seperate goroutine...
+
+		4. Check to see if an hour has passed since last modification time.
+				* If it has been at least an hour, append new cryptographic entry to the file.
+				* If it has not been at least an hour, do not append.
+		5. Check to see if the length of the bytes in the file are 24 * 32.
+				* If that length exists, remove bytes 0-31 and append 32 new ones hourly.
+
+		Meanwhile, in this func...
+
+		6. Retrieve the latest 32 bytes of the data to use in encryption and decryption
+	*/
+	return nil
+}
+
 /*	Source 2:
 	https://www.gorillatoolkit.org/pkg/securecookie
 */
