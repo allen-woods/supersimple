@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -26,6 +27,11 @@ const apqPrefix = "apq:"
 const defaultPort = "8080"
 const redisAddr = "localhost:6379"
 const redisPass = ""
+
+var roller struct {
+	t *time.Ticker
+	d chan bool
+}
 
 func NewRedisClient() *redis.Client {
 	return redis.NewClient(&redis.Options{
@@ -52,6 +58,34 @@ func (c *Cache) Get(ctx context.Context, hash string) (string, bool) {
 		return "", false
 	}
 	return s, true
+}
+
+func init() {
+	// Initial trigger, or we'll be waiting an hour for this to fire.
+	err := auth.Roll()
+	if err != nil {
+		fmt.Println("ERROR:", err)
+	}
+
+	// This goroutine will fire once every hour, continuously.
+	roller.t = time.NewTicker(4 * time.Second)
+	roller.d = make(chan bool)
+
+	go func() {
+		for {
+			select {
+			case <-roller.d:
+				return
+			case <-roller.t.C:
+				err := auth.Roll()
+				if err != nil {
+					fmt.Println("ERROR:", err)
+				}
+			}
+		}
+	}()
+
+	fmt.Println("Roller is running.")
 }
 
 func main() {
@@ -93,6 +127,8 @@ func main() {
 		router,
 	)
 	if err != nil {
+		roller.t.Stop()
+		roller.d <- true
 		panic(err)
 	}
 }

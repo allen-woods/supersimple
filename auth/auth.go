@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -59,115 +61,136 @@ func GenerateRandomString(s int) (string, error) {
 
 /* End Source 1 */
 
-func RollHashesAndKeyes() error {
-	var hf *os.File
-	hfName := "./hash"
-
-	_, err := os.Stat(hfName)
-	if os.IsNotExist(err) {
-		hf, err = os.Create(hfName)
-		if err != nil {
-			return err
-		}
-
-		err = hf.Chmod(0600)
-		if err != nil {
-			return err
-		}
-
-		err = hf.Chown(os.Getuid(), os.Getgid())
-		if err != nil {
-			return err
-		}
-
-		err = os.Chtimes(hfName, time.Now(), time.Now())
-		if err != nil {
-			return err
-		}
-
-	} else {
-		hf, err = os.Open(hfName)
-		if err != nil {
-			return err
-		}
-	}
-
-	// From here on, hf is a valid pointer to a File.
-
-	defer hf.Close()
-
-	fi, err := hf.Stat()
+func Roll() error {
+	err := RollFile(".hash")
 	if err != nil {
 		return err
 	}
 
-	// Extract the modification time
-	modTime := fi.ModTime()
-
-	// Check to see if 24 hours have passed
-	if time.Now().Sub(modTime) >= 24*time.Hour {
-
-		// If 24+ hours, we must subtract the first 32 bytes and add 32 at the end.
-		// We then conclude by updating Chtimes
-
-	} else {
-
-		// If less than 24 hours, we update once per hour
-
+	err = RollFile(".key")
+	if err != nil {
+		return err
 	}
 
-	/*
-		1. Create the file if it doesn't exist at all.	(done)
-		2. Set chmod to 0600 (if not already set).	(done)
-		3. Set chown to os.Getuid and os.Getgid (if not already set).	(done)
+	return nil
+}
 
-		In a seperate goroutine...
+func RollFile(fName string) error {
+	var f *os.File
 
-		4. Check to see if an hour has passed since last modification time.
-				* If it has been at least an hour, append new cryptographic entry to the file.
-				* If it has not been at least an hour, do not append.
-		5. Check to see if the length of the bytes in the file are 24 * 32.
-				* If that length exists, remove bytes 0-31 and append 32 new ones hourly.
+	_, err := os.Stat(fName)
+	if os.IsNotExist(err) {
+		f, err = os.Create(fName)
+		if err != nil {
+			return err
+		}
 
-		Meanwhile, in this func...
+		err = f.Chown(os.Getuid(), os.Getgid())
+		if err != nil {
+			return err
+		}
 
-		6. Retrieve the latest 32 bytes of the data to use in encryption and decryption
-	*/
+		err = f.Chmod(0600)
+		if err != nil {
+			return err
+		}
+
+		err = os.Chtimes(fName, time.Now(), time.Now())
+		if err != nil {
+			return err
+		}
+	} else {
+		f, err = os.OpenFile(fName, os.O_RDWR, 0600)
+		if err != nil {
+			return err
+		}
+	}
+
+	defer f.Close()
+
+	fInfo, err := f.Stat()
+	if err != nil {
+		return err
+	}
+
+	// Capture the number of bytes in the file.
+	n := fInfo.Size()
+
+	// Create a variable of type []byte for storing the file's data later.
+	var fData []byte
+
+	if n >= 24*32 {
+		// We have 24 hours worth of data stored in the file.
+		// Initialize the length of fData to n - 32.
+		// We do this because we are trimming off the first 32 bytes.
+		fData = make([]byte, n-32)
+
+		fmt.Println("/ // / // / 24 Hours / // / // /")
+
+		lenBytes, err := f.ReadAt(fData, 32)
+		if lenBytes != int(n-32) || err != nil {
+			return errors.New("Corruption of data in rolling encryption file:\nunexpected number of bytes.")
+		}
+	} else {
+		// Initialize the length of fData to n.
+		// We do this because we are only appending bytes, not removing bytes.
+		fData = make([]byte, n)
+
+		lenBytes, err := f.Read(fData)
+		if lenBytes != int(n) || err != nil {
+			return err //errors.New("Corruption of data in rolling encryption file:\nunexpected number of bytes.")
+		}
+	}
+
+	// Create our random string.
+	s, err := GenerateRandomString(24)
+	if err != nil {
+		return err
+	}
+
+	//fmt.Printf("The data contains:\n%v\n\nand is %d bytes long.\n\n", fData, len(fData))
+
+	//fmt.Println("APPENDING...")
+
+	// Append the random string to fData.
+	fData = append(fData, []byte(s)...)
+
+	//fmt.Printf("\nThe data NOW contains:\n%v\n\nand is %d bytes long.\n\n", fData, len(fData))
+
+	// Overwrite the contents of the file.
+	_, err = f.WriteAt(fData, 0)
+	if err != nil {
+		return err
+	}
+
+	err = f.Sync()
+	if err != nil {
+		return err
+	}
+	// if numBytes != len(fData) {
+	// 	return fmt.Errorf("Number of bytes written: %d\nNumber of bytes expected: %d\n\n", numBytes, len(fData))
+	// } else if err != nil {
+	// 	return err
+	// }
+
+	// Send the newest entry to the unexported variables.
+	// The newest entry is the last 32 bytes and must be sent to the correct var.
+	switch fName {
+	case ".hash":
+		validateCookie.hash = fData[len(fData)-32:]
+		//fmt.Printf("Appended byte slice:\n%s\nTarget file: %s\n\n", string(validateCookie.hash), fName)
+	case ".key":
+		validateCookie.key = fData[len(fData)-32:]
+		//fmt.Printf("Appended byte slice:\n%s\nTarget file: %s\n\n", string(validateCookie.key), fName)
+	}
+
+	// If we have made it through, everything worked correctly.
 	return nil
 }
 
 /*	Source 2:
 	https://www.gorillatoolkit.org/pkg/securecookie
 */
-func SetEnvironmentVariables() error {
-	h := os.Getenv("COOKIE_HASH")
-	if h == "" {
-		hs, err := GenerateRandomString(24)
-		if err != nil {
-			return err
-		}
-		// If the environment variable does not exist,
-		// we must initialize it with the hash string.
-		os.Setenv("COOKIE_HASH", hs)
-	}
-
-	k := os.Getenv("COOKIE_KEY")
-	if k == "" {
-		ks, err := GenerateRandomString(24)
-		if err != nil {
-			return err
-		}
-		// If the environment variable does not exist,
-		// we must initialize it with the key string.
-		os.Setenv("COOKIE_KEY", ks)
-	}
-
-	validateCookie.hash = []byte(os.Getenv("COOKIE_HASH"))
-	validateCookie.key = []byte(os.Getenv("COOKIE_KEY"))
-	sc = securecookie.New(validateCookie.hash, validateCookie.key)
-
-	return nil
-}
 
 func HashAndSalt(pw string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
@@ -196,6 +219,7 @@ func ReadSessionIDFromCookie(w http.ResponseWriter, r *http.Request) (string, er
 
 	err = sc.Decode("sid", cookie.Value, &value)
 	if err != nil {
+		// This is where we need to check all possible hashes and keys
 		return "", err
 	}
 
@@ -254,8 +278,6 @@ func WriteToRedis(sessionID map[string]string, userID string, ttl time.Time) err
 func Middleware() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			SetEnvironmentVariables()
-
 			var maxAge int
 			var expiration time.Time
 
@@ -303,6 +325,8 @@ func Middleware() func(next http.Handler) http.Handler {
 
 					// Confirm the data was persisted and not corrupted or dropped.
 					if persistedID == authenticatedUserID.id {
+
+						sc = securecookie.New(validateCookie.hash, validateCookie.key)
 
 						// Encrypt the uuid using AES-256 algorithm.
 						encoded, err := sc.Encode("sid", sessionID)
