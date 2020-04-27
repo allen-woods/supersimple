@@ -68,7 +68,7 @@ func init() {
 	}
 
 	// This goroutine will fire once every hour, continuously.
-	roller.t = time.NewTicker(4 * time.Second)
+	roller.t = time.NewTicker(1 * time.Hour)
 	roller.d = make(chan bool)
 
 	go func() {

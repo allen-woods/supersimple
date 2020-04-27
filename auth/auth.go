@@ -25,12 +25,12 @@ var deleteSessionAndCookie struct {
 	flag bool
 }
 
-var validateCookie struct {
-	hash []byte
-	key  []byte
-}
+var validCookies []securecookie.Codec
 
-var sc *securecookie.SecureCookie
+var hashKeyData struct {
+	hash [][]byte
+	key  [][]byte
+}
 
 var userIDCtxKey = &contextKey{"userID"}
 
@@ -62,12 +62,17 @@ func GenerateRandomString(s int) (string, error) {
 /* End Source 1 */
 
 func Roll() error {
-	err := RollFile(".hash")
+	err := rollFile(".hash")
 	if err != nil {
 		return err
 	}
 
-	err = RollFile(".key")
+	err = rollFile(".key")
+	if err != nil {
+		return err
+	}
+
+	err = generateValidCookies()
 	if err != nil {
 		return err
 	}
@@ -75,22 +80,17 @@ func Roll() error {
 	return nil
 }
 
-func RollFile(fName string) error {
+func rollFile(fName string) error {
 	var f *os.File
 
 	_, err := os.Stat(fName)
 	if os.IsNotExist(err) {
-		f, err = os.Create(fName)
+		f, err = os.OpenFile(fName, os.O_CREATE|os.O_RDWR, 0600)
 		if err != nil {
 			return err
 		}
 
 		err = f.Chown(os.Getuid(), os.Getgid())
-		if err != nil {
-			return err
-		}
-
-		err = f.Chmod(0600)
 		if err != nil {
 			return err
 		}
@@ -148,14 +148,8 @@ func RollFile(fName string) error {
 		return err
 	}
 
-	//fmt.Printf("The data contains:\n%v\n\nand is %d bytes long.\n\n", fData, len(fData))
-
-	//fmt.Println("APPENDING...")
-
 	// Append the random string to fData.
 	fData = append(fData, []byte(s)...)
-
-	//fmt.Printf("\nThe data NOW contains:\n%v\n\nand is %d bytes long.\n\n", fData, len(fData))
 
 	// Overwrite the contents of the file.
 	_, err = f.WriteAt(fData, 0)
@@ -177,14 +171,68 @@ func RollFile(fName string) error {
 	// The newest entry is the last 32 bytes and must be sent to the correct var.
 	switch fName {
 	case ".hash":
-		validateCookie.hash = fData[len(fData)-32:]
-		//fmt.Printf("Appended byte slice:\n%s\nTarget file: %s\n\n", string(validateCookie.hash), fName)
+		err = parseHashDataToMemory(fData)
+		if err != nil {
+			return err
+		}
 	case ".key":
-		validateCookie.key = fData[len(fData)-32:]
-		//fmt.Printf("Appended byte slice:\n%s\nTarget file: %s\n\n", string(validateCookie.key), fName)
+		err = parseKeyDataToMemory(fData)
+		if err != nil {
+			return err
+		}
 	}
 
 	// If we have made it through, everything worked correctly.
+	return nil
+}
+
+func parseHashDataToMemory(data []byte) error {
+	n := len(data) / 32
+	if n <= 0 {
+		return errors.New("Illegal length for data in hash file.")
+	}
+
+	hashKeyData.hash = make([][]byte, 0, 24)
+
+	for k := 0; k < n; k++ {
+		h := data[k*32 : ((k*32)+32)-1]
+		hashKeyData.hash = append(hashKeyData.hash, h)
+	}
+
+	return nil
+}
+
+func parseKeyDataToMemory(data []byte) error {
+	n := len(data) / 32
+	if n <= 0 {
+		return errors.New("Illegal length for data in key file.")
+	}
+
+	hashKeyData.key = make([][]byte, 0, 24)
+
+	for l := 0; l < n; l++ {
+		k := data[l*32 : ((l*32)+32)-1]
+		hashKeyData.key = append(hashKeyData.key, k)
+	}
+
+	return nil
+}
+
+func generateValidCookies() error {
+	validCookies = make([]securecookie.Codec, 0, 24)
+	hLen := len(hashKeyData.hash)
+	kLen := len(hashKeyData.key)
+	if hLen != kLen {
+		return errors.New("Hash and Key data must be of equal size.")
+	}
+
+	for hk := 0; hk < hLen; hk++ {
+		c := securecookie.New(
+			hashKeyData.hash[hk],
+			hashKeyData.key[hk],
+		)
+		validCookies = append(validCookies, c)
+	}
 	return nil
 }
 
@@ -217,9 +265,8 @@ func ReadSessionIDFromCookie(w http.ResponseWriter, r *http.Request) (string, er
 
 	value := make(map[string]string)
 
-	err = sc.Decode("sid", cookie.Value, &value)
+	err = securecookie.DecodeMulti("sid", cookie.Value, &value, validCookies...)
 	if err != nil {
-		// This is where we need to check all possible hashes and keys
 		return "", err
 	}
 
@@ -326,10 +373,12 @@ func Middleware() func(next http.Handler) http.Handler {
 					// Confirm the data was persisted and not corrupted or dropped.
 					if persistedID == authenticatedUserID.id {
 
-						sc = securecookie.New(validateCookie.hash, validateCookie.key)
-
 						// Encrypt the uuid using AES-256 algorithm.
-						encoded, err := sc.Encode("sid", sessionID)
+						encoded, err := securecookie.EncodeMulti(
+							"sid",
+							sessionID,
+							validCookies[len(validCookies)-1],
+						)
 						if err != nil {
 							log.Fatalln("Failed to encode sessionID")
 						}
@@ -371,7 +420,7 @@ func Middleware() func(next http.Handler) http.Handler {
 				// Set aside a variable for receiving the sessionID from cookie.
 				sessionID := make(map[string]string)
 
-				err = sc.Decode("sid", cookie.Value, &sessionID)
+				err = securecookie.DecodeMulti("sid", cookie.Value, &sessionID, validCookies...)
 				if err != nil {
 					log.Fatalln("The session cookie has been tampered with:", err)
 				}
